@@ -226,7 +226,9 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
           />
         ) : (
           <WorkingForm
+            laneIndex={laneIndex}
             draft={draft}
+            continuousMode={continuousMode}
             onDraftChange={handleDraftChange}
             onCancel={handleCancel}
             onHandover={handleHandover}

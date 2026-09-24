@@ -35,6 +35,7 @@ interface PitStore {
   inspector: string;
   laneCount: number;        // 1〜10
   laneStates: LaneState[];  // 可変長（最大10）
+  pitInButtonPosition: 'left' | 'right'; // PIT INボタン位置
 
   addRecord: (record: PitRecord) => void;
   updateRecord: (id: string, patch: Partial<PitRecord>) => void;
@@ -50,6 +51,7 @@ interface PitStore {
   /** continuousMode を温存したまま status/draft のみ初期化 */
   resetLane: (index: number) => void;
   clearAllData: () => void;
+  setPitInButtonPosition: (pos: 'left' | 'right') => void;
 }
 
 export const usePitStore = create<PitStore>()(
@@ -60,6 +62,7 @@ export const usePitStore = create<PitStore>()(
       inspector: '',
       laneCount: 2,
       laneStates: [initialLaneState(), initialLaneState()],
+      pitInButtonPosition: 'right',
 
       addRecord: (record) =>
         set((state) => ({ records: [...state.records, record] })),
@@ -78,6 +81,7 @@ export const usePitStore = create<PitStore>()(
 
       setSessionName: (v) => set({ sessionName: v }),
       setInspector: (v) => set({ inspector: v }),
+      setPitInButtonPosition: (pos) => set({ pitInButtonPosition: pos }),
 
       setLaneCount: (count) => {
         let success = true;
@@ -144,6 +148,11 @@ export const usePitStore = create<PitStore>()(
         const state = persistedState as Record<string, unknown> | null;
         if (!state) return state as unknown as PitStore;
 
+        // pitInButtonPosition が無い旧データに初期値を補完
+        if (state.pitInButtonPosition === undefined) {
+          state.pitInButtonPosition = 'right';
+        }
+
         if (fromVersion < 1) {
           if (!Array.isArray(state.records)) {
             state.records = [];
@@ -151,7 +160,7 @@ export const usePitStore = create<PitStore>()(
           if (!Array.isArray(state.laneStates)) {
             state.laneStates = [initialLaneState(), initialLaneState()];
           }
-          
+
           // PitRecord に pitInAt / pitOutAt を補完
           if (Array.isArray(state.records)) {
             state.records = (state.records as Record<string, unknown>[])
