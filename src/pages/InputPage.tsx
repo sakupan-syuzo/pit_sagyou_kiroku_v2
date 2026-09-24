@@ -235,7 +235,7 @@ const InputPage: React.FC = () => {
           }`}
           title="画面の自動消灯を防止します"
         >
-          {isWakeLockActive ? '☀️ 維持ON' : '🌙 維持OFF'}
+          {isWakeLockActive ? '☀️ 維持' : '🌙 維持'}
         </button>
 
         <div className="flex-1" />
