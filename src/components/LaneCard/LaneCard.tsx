@@ -59,7 +59,11 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
   const addRecord = usePitStore((s) => s.addRecord);
   const laneState = usePitStore((s) => s.laneStates[laneIndex]);
   const setLaneState = usePitStore((s) => s.setLaneState);
+  const updateDraft = usePitStore((s) => s.updateDraft);
   const resetLane = usePitStore((s) => s.resetLane);
+
+  // laneStates[laneIndex] が undefined の場合はガード
+  if (!laneState) return null;
 
   const { status, draft, continuousMode } = laneState;
 
@@ -68,30 +72,29 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
     setLaneState(laneIndex, { continuousMode: !continuousMode });
   };
 
-  const handlePitIn = (fields: Pick<LaneDraft, 'pitNo' | 'carNo' | 'pitInDriver'>) => {
-    // 部分マージで status と draft だけ更新（continuousMode は維持）
+  const handlePitIn = () => {
+    // 打刻のみ。pitNo / carNo / pitInDriver は draft に既にある。
+    const now = Date.now();
     setLaneState(laneIndex, {
       status: 'working',
       draft: {
-        pitNo: fields.pitNo,
-        carNo: fields.carNo,
-        pitInDriver: fields.pitInDriver,
+        ...draft,
         isDriverChanged: false,
         pitOutDriver: '',
         pitInTime: getNowTime(),
+        pitInAt: now,
+        pitOutAt: null,
         refuel: false,
         tires: 0,
         other: '',
-        createdAt: Date.now(),
+        createdAt: now,
       },
     });
   };
 
   const handleDraftChange = (patch: Partial<LaneDraft>) => {
-    // 部分マージで draft だけ更新（continuousMode は維持）
-    setLaneState(laneIndex, {
-      draft: { ...draft, ...patch },
-    });
+    // stale closure を起こさないストア駆動の updateDraft を使用
+    updateDraft(laneIndex, patch);
   };
 
   const handleCancel = () => {
@@ -112,6 +115,8 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
       pitOutDriver: draft.isDriverChanged ? draft.pitOutDriver : '',
       pitInTime: draft.pitInTime,
       pitOutTime: '',
+      pitInAt: draft.pitInAt,
+      pitOutAt: null,
       refuel: draft.refuel,
       tires: draft.tires,
       other: draft.other,
@@ -123,6 +128,8 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
 
   const handlePitOut = () => {
     const nextDriver = draft.isDriverChanged ? draft.pitOutDriver : draft.pitInDriver;
+    const now = Date.now();
+    const nowTime = getNowTime();
 
     const record: PitRecord = {
       id: uuidv4(),
@@ -133,7 +140,9 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
       isDriverChanged: draft.isDriverChanged,
       pitOutDriver: nextDriver,
       pitInTime: draft.pitInTime,
-      pitOutTime: getNowTime(),
+      pitOutTime: nowTime,
+      pitInAt: draft.pitInAt,
+      pitOutAt: now,
       refuel: draft.refuel,
       tires: draft.tires,
       other: draft.other,
@@ -151,7 +160,8 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
           isDriverChanged: false,
           pitOutDriver: '',
           pitInTime: '',
-          pitOutTime: '',
+          pitInAt: 0,
+          pitOutAt: null,
           refuel: false,
           tires: 0,
           other: '',
@@ -210,10 +220,9 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
       <div className={`p-4 ${status === 'working' ? LANE_STATUS_BG[laneIndex] : ''}`}>
         {status === 'standby' ? (
           <StandbyForm
+            draft={draft}
+            onDraftChange={handleDraftChange}
             onPitIn={handlePitIn}
-            initialPitNo={draft.pitNo}
-            initialCarNo={draft.carNo}
-            initialDriver={draft.pitInDriver}
           />
         ) : (
           <WorkingForm

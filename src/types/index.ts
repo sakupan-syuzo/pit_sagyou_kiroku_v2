@@ -9,6 +9,8 @@ export type PitRecord = {
   pitOutDriver: string;
   pitInTime: string;    // "HH:mm:ss" — 表示専用
   pitOutTime: string;   // "HH:mm:ss" または "" (途中離脱)
+  pitInAt: number;      // epoch ms — 計算用
+  pitOutAt: number | null; // epoch ms — 計算用（途中離脱時は null）
   refuel: boolean;
   tires: number;        // 0〜4
   other: string;
@@ -24,6 +26,8 @@ export type LaneDraft = {
   isDriverChanged: boolean;
   pitOutDriver: string;
   pitInTime: string;
+  pitInAt: number;      // epoch ms — 計算用
+  pitOutAt: number | null; // epoch ms — 計算用
   refuel: boolean;
   tires: number;
   other: string;

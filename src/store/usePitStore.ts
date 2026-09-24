@@ -15,6 +15,8 @@ const initialLaneDraft = (): LaneDraft => ({
   isDriverChanged: false,
   pitOutDriver: '',
   pitInTime: '',
+  pitInAt: 0,
+  pitOutAt: null,
   refuel: false,
   tires: 0,
   other: '',
@@ -39,10 +41,13 @@ interface PitStore {
   deleteRecord: (id: string) => void;
   setSessionName: (v: string) => void;
   setInspector: (v: string) => void;
-  setLaneCount: (count: number) => void;
-  // 部分マージ方式
+  /** レーン数を変更。切り捨て対象に working レーンが含まれる場合は false を返す */
+  setLaneCount: (count: number) => boolean;
+  /** 部分マージ方式 */
   setLaneState: (index: number, partial: Partial<LaneState>) => void;
-  // continuousMode を温存したまま status/draft のみ初期化
+  /** draft のみネストマージ（stale closure を起こさないストア駆動版） */
+  updateDraft: (index: number, patch: Partial<LaneDraft>) => void;
+  /** continuousMode を温存したまま status/draft のみ初期化 */
   resetLane: (index: number) => void;
   clearAllData: () => void;
 }
@@ -74,25 +79,43 @@ export const usePitStore = create<PitStore>()(
       setSessionName: (v) => set({ sessionName: v }),
       setInspector: (v) => set({ inspector: v }),
 
-      setLaneCount: (count) =>
+      setLaneCount: (count) => {
+        let success = true;
         set((s) => {
           const current = s.laneStates;
           // 増やす場合: 新しいレーンを追加
-          if (count > current.length) {
+          if (count >= current.length) {
             const added = Array.from(
               { length: count - current.length },
               () => initialLaneState()
             );
             return { laneCount: count, laneStates: [...current, ...added] };
           }
-          // 減らす場合: 末尾を切り捨て（呼び出し元で確認済み）
+          // 減らす場合: 切り捨て対象に working レーンが含まれるか確認
+          const toRemove = current.slice(count);
+          if (toRemove.some((ls) => ls.status === 'working')) {
+            success = false;
+            return {}; // 変更なし
+          }
           return { laneCount: count, laneStates: current.slice(0, count) };
-        }),
+        });
+        return success;
+      },
 
       setLaneState: (index, partial) =>
         set((s) => {
           const next = [...s.laneStates];
           next[index] = { ...next[index], ...partial };
+          return { laneStates: next };
+        }),
+
+      updateDraft: (index, patch) =>
+        set((s) => {
+          const next = [...s.laneStates];
+          next[index] = {
+            ...next[index],
+            draft: { ...next[index].draft, ...patch },
+          };
           return { laneStates: next };
         }),
 
@@ -116,6 +139,71 @@ export const usePitStore = create<PitStore>()(
     }),
     {
       name: 'pit-records-storage',
+      version: 1,
+      migrate: (persistedState: unknown, fromVersion: number) => {
+        const state = persistedState as Record<string, unknown>;
+
+        if (fromVersion < 1) {
+          // PitRecord に pitInAt / pitOutAt を補完
+          if (Array.isArray(state.records)) {
+            state.records = (state.records as Record<string, unknown>[]).map((r) => {
+              const record = r as Record<string, unknown>;
+              // pitInAt: pitInTime (HH:mm:ss) から当日の epoch を補完、不能なら createdAt
+              if (record.pitInAt === undefined || record.pitInAt === null) {
+                const timeStr = record.pitInTime as string | undefined;
+                const createdAt = (record.createdAt as number | undefined) ?? Date.now();
+                if (timeStr && /^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
+                  const base = new Date(createdAt);
+                  const [hh, mm, ss] = timeStr.split(':').map(Number);
+                  base.setHours(hh, mm, ss, 0);
+                  record.pitInAt = base.getTime();
+                } else {
+                  record.pitInAt = createdAt;
+                }
+              }
+              if (record.pitOutAt === undefined) {
+                const outTime = record.pitOutTime as string | undefined;
+                if (outTime && /^\d{2}:\d{2}:\d{2}$/.test(outTime)) {
+                  const base = new Date((record.pitInAt as number));
+                  const [hh, mm, ss] = outTime.split(':').map(Number);
+                  base.setHours(hh, mm, ss, 0);
+                  record.pitOutAt = base.getTime();
+                } else {
+                  record.pitOutAt = null;
+                }
+              }
+              return record;
+            });
+          }
+
+          // LaneState.draft に pitInAt / pitOutAt を補完
+          if (Array.isArray(state.laneStates)) {
+            state.laneStates = (state.laneStates as Record<string, unknown>[]).map((ls) => {
+              const laneState = ls as Record<string, unknown>;
+              const draft = (laneState.draft ?? {}) as Record<string, unknown>;
+              if (draft.pitInAt === undefined || draft.pitInAt === null) {
+                const timeStr = draft.pitInTime as string | undefined;
+                const createdAt = (draft.createdAt as number | undefined) ?? 0;
+                if (timeStr && /^\d{2}:\d{2}:\d{2}$/.test(timeStr) && createdAt > 0) {
+                  const base = new Date(createdAt);
+                  const [hh, mm, ss] = timeStr.split(':').map(Number);
+                  base.setHours(hh, mm, ss, 0);
+                  draft.pitInAt = base.getTime();
+                } else {
+                  draft.pitInAt = createdAt;
+                }
+              }
+              if (draft.pitOutAt === undefined) {
+                draft.pitOutAt = null;
+              }
+              laneState.draft = draft;
+              return laneState;
+            });
+          }
+        }
+
+        return state as PitStore;
+      },
     }
   )
 );
