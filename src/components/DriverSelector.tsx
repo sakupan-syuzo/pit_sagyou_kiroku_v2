@@ -24,18 +24,27 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   excludeLabels = [],
   driverLabels,
 }) => {
-  const labels = driverLabels && driverLabels.length > 0 ? driverLabels : (DEFAULT_DRIVER_LABELS as readonly string[]);
+  const hasCustomLabels = driverLabels && driverLabels.length > 0;
+  const count = hasCustomLabels ? driverLabels.length : DEFAULT_DRIVER_LABELS.length;
+
+  const buttons = Array.from({ length: count }).map((_, i) => {
+    const defaultLabel = DEFAULT_DRIVER_LABELS[i] || String.fromCharCode(65 + i);
+    const customLabel = hasCustomLabels ? driverLabels[i] : null;
+    const valueToUse = customLabel || defaultLabel;
+    const displaySub = customLabel ? customLabel.slice(0, 5) : null;
+    return { defaultLabel, displaySub, valueToUse };
+  });
 
   // プリセットに含まれているか
-  const isPreset = labels.includes(value);
+  const isPreset = buttons.some((b) => b.valueToUse === value);
 
   // マウント時: 値が空またはプリセット値であれば入力モードOFF
   const [inputMode, setInputMode] = React.useState<boolean>(
     value !== '' && !isPreset
   );
 
-  const handlePreset = (label: string) => {
-    onChange(label);
+  const handlePreset = (val: string) => {
+    onChange(val);
     setInputMode(false);
   };
 
@@ -43,7 +52,6 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
     const next = !inputMode;
     setInputMode(next);
     if (!next) {
-      // 入力モードOFF時、テキストがプリセットでなければクリア
       if (!isPreset) onChange('');
     }
   };
@@ -51,18 +59,18 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   return (
     <div className="space-y-1.5">
       {/* プリセットボタン行（A〜F + 入力トグル） */}
-      <div className="flex gap-0.5 items-center flex-wrap">
-        {labels.map((label) => {
-          const isExcluded = excludeLabels.includes(label);
-          const isSelected = value === label && !inputMode;
+      <div className="flex gap-0.5 items-stretch flex-wrap">
+        {buttons.map(({ defaultLabel, displaySub, valueToUse }) => {
+          const isExcluded = excludeLabels.includes(valueToUse);
+          const isSelected = value === valueToUse && !inputMode;
           return (
             <button
-              key={label}
+              key={valueToUse}
               type="button"
               disabled={isExcluded}
-              onClick={() => !isExcluded && handlePreset(label)}
-              title={isExcluded ? `${label}: PIT INで使用中` : undefined}
-              className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-colors leading-tight break-words min-w-[2.5rem] ${
+              onClick={() => !isExcluded && handlePreset(valueToUse)}
+              title={isExcluded ? `${valueToUse}: PIT INで使用中` : valueToUse}
+              className={`flex-1 flex flex-col items-center justify-center rounded-md border transition-colors leading-none min-w-[1.8rem] min-h-[38px] px-0.5 ${
                 isExcluded
                   ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed line-through'
                   : isSelected
@@ -70,16 +78,23 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 active:bg-gray-100'
               }`}
             >
-              {label}
+              <span className={`font-black ${displaySub ? 'text-[11px]' : 'text-sm'}`}>
+                {defaultLabel}
+              </span>
+              {displaySub && (
+                <span className="text-[9px] font-bold mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap px-0.5">
+                  {displaySub}
+                </span>
+              )}
             </button>
           );
         })}
 
-        {/* 入力モード切替ボタン（アイコンのみでコンパクトに） */}
+        {/* 入力モード切替ボタン */}
         <button
           type="button"
           onClick={handleToggleInput}
-          className={`flex items-center justify-center px-2 py-1.5 rounded-md border transition-colors shrink-0 ${
+          className={`flex items-center justify-center px-2 min-h-[38px] rounded-md border transition-colors shrink-0 ${
             inputMode
               ? 'bg-indigo-600 text-white border-indigo-600'
               : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'

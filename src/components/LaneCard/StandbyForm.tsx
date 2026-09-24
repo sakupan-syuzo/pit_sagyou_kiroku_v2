@@ -40,7 +40,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           value={draft.pitNo || ''}
           onChange={(e) => onDraftChange({ pitNo: e.target.value })}
           placeholder="PIT#"
-          className="w-14 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {/* Car No. */}
         <input
@@ -49,7 +49,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           value={draft.carNo || ''}
           onChange={(e) => onDraftChange({ carNo: e.target.value })}
           placeholder="Car#"
-          className="w-14 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {/* INドライバー: DriverSelector */}
         <div className="flex-1 min-w-0">

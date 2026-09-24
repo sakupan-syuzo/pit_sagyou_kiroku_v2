@@ -224,7 +224,7 @@ const InputPage: React.FC = () => {
           onClick={() => setPitInButtonPosition(pitInButtonPosition === 'right' ? 'left' : 'right')}
           className="text-xs font-bold text-gray-600 border border-gray-300 rounded px-2 py-1 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors shrink-0"
         >
-          {pitInButtonPosition === 'right' ? '⬅ IN左' : 'IN右 ➡'}
+          {pitInButtonPosition === 'right' ? '⬅ IN' : 'IN ➡'}
         </button>
 
         <button

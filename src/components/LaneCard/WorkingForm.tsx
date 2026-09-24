@@ -143,13 +143,16 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                   : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
               }`}
             >
-              <span className="text-xl">🔄</span> 交代する
+              <span className="text-xl">🔄</span> 交代
             </button>
           </div>
           
           {draft.isDriverChanged && (
             <div className="flex flex-wrap gap-1">
-              {labels.map((label) => {
+              {labels.map((label, i) => {
+                const defaultLabel = DEFAULT_DRIVER_LABELS[i] || String.fromCharCode(65 + i);
+                const isCustom = label !== defaultLabel;
+                const displaySub = isCustom ? label.slice(0, 5) : null;
                 const isExcluded = label === draft.pitInDriver;
                 const isSelected = draft.pitOutDriver === label;
                 return (
@@ -158,15 +161,17 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                     type="button"
                     disabled={isExcluded}
                     onClick={() => !isExcluded && onDraftChange({ pitOutDriver: label })}
-                    className={`flex-1 min-w-[3rem] h-12 rounded-xl font-black text-sm leading-tight break-words border-2 transition-colors ${
+                    className={`flex-1 flex flex-col items-center justify-center min-w-[3rem] h-12 rounded-xl border-2 transition-colors leading-none overflow-hidden ${
                       isExcluded
                         ? 'bg-gray-100 text-gray-300 border-gray-200 line-through cursor-not-allowed'
                         : isSelected
                         ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
                         : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'
                     }`}
+                    title={isExcluded ? `${label}: 乗車中` : label}
                   >
-                    {label}
+                    <span className="font-black text-sm">{defaultLabel}</span>
+                    {displaySub && <span className="text-[10px] font-bold mt-0.5">{displaySub}</span>}
                   </button>
                 );
               })}
