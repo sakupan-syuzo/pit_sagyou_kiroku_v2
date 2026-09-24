@@ -157,7 +157,7 @@ const InputPage: React.FC = () => {
       setLaneCount(next);
       return;
     }
-    const hasWorkingData = laneStates.slice(next).some((ls) => ls.status === 'working');
+    const hasWorkingData = laneStates.slice(next).some((ls) => ls?.status === 'working');
     if (hasWorkingData) {
       if (!window.confirm(
         `レーン数を ${laneCount} → ${next} に減らすと、\n` +
@@ -179,7 +179,6 @@ const InputPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
-
       {/* ========== ツールバー ========== */}
       <div className="flex-none bg-white border-b border-gray-200 px-3 py-2 flex items-center gap-2 shadow-sm">
         <h1 className="text-sm font-black text-gray-800 shrink-0">🏁 PIT REC</h1>
@@ -235,7 +234,6 @@ const InputPage: React.FC = () => {
 
       {/* ========== メインエリア（上下分割） ========== */}
       <div className="flex-1 flex flex-col overflow-hidden">
-
         {/* ---- 上部: 待機中レーンのダッシュボード ---- */}
         {standbyLanes.length > 0 && !showHistory && (
           <div className="flex-none bg-white border-b border-gray-200 px-2 py-2 space-y-1.5 overflow-y-auto max-h-[45vh]">
@@ -243,15 +241,17 @@ const InputPage: React.FC = () => {
             {standbyLanes.map((laneIndex) => {
               const ls = laneStates[laneIndex];
               if (!ls) return null;
+              const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
+              const borderColor = LANE_BORDER_COLORS[laneIndex] || 'border-gray-500';
+              const label = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
+
               return (
                 <div
                   key={laneIndex}
-                  className={`rounded-xl border ${LANE_BORDER_COLORS[laneIndex]} overflow-hidden`}
+                  className={`rounded-xl border ${borderColor} overflow-hidden`}
                 >
-                  {/* レーンヘッダー（コンパクト） */}
-                  <div className={`${LANE_HEADER_COLORS[laneIndex]} text-white px-3 py-1 flex items-center justify-between`}>
-                    <span className="text-xs font-black tracking-wider">{LANE_LABELS[laneIndex]}</span>
-                    {/* 連続モードトグル */}
+                  <div className={`${headerColor} text-white px-3 py-1 flex items-center justify-between`}>
+                    <span className="text-xs font-black tracking-wider">{label}</span>
                     <button
                       type="button"
                       onClick={makeHandleToggleContinuous(laneIndex)}
@@ -271,7 +271,6 @@ const InputPage: React.FC = () => {
                       </span>
                     </button>
                   </div>
-                  {/* StandbyForm（1行コンパクト） */}
                   <div className="px-2 py-1.5">
                     <StandbyForm
                       draft={ls.draft}
@@ -293,13 +292,17 @@ const InputPage: React.FC = () => {
                 const ls = laneStates[laneIndex];
                 if (!ls) return <div key={laneIndex} />;
                 const isWorking = ls.status === 'working';
+                const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
+                const borderColor = LANE_BORDER_COLORS[laneIndex] || 'border-gray-300';
+                const bgColor = LANE_BG_COLORS[laneIndex] || 'bg-gray-50';
+                const label = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
 
                 return (
                   <div
                     key={laneIndex}
                     className={`rounded-xl border-2 overflow-hidden ${
                       isWorking
-                        ? `${LANE_BORDER_COLORS[laneIndex]} ${LANE_BG_COLORS[laneIndex]}`
+                        ? `${borderColor} ${bgColor}`
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   >
@@ -314,10 +317,9 @@ const InputPage: React.FC = () => {
                         onPitOut={makeHandlePitOut(laneIndex)}
                       />
                     ) : (
-                      /* 待機中プレースホルダー（グリッド位置を固定するための空枠） */
                       <div className="flex flex-col items-center justify-center h-full min-h-[100px] gap-1 p-2">
-                        <span className={`text-xs font-black ${LANE_HEADER_COLORS[laneIndex].replace('bg-', 'text-')}`}>
-                          {LANE_LABELS[laneIndex]}
+                        <span className={`text-xs font-black ${headerColor.replace('bg-', 'text-')}`}>
+                          {label}
                         </span>
                         <span className="text-xs text-gray-400">⚪ 待機中</span>
                       </div>

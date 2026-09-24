@@ -9,7 +9,7 @@ interface StandbyFormProps {
 }
 
 const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn }) => {
-  const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition);
+  const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition) || 'right';
 
   return (
     <div
@@ -31,7 +31,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
         <input
           type="text"
           inputMode="numeric"
-          value={draft.pitNo}
+          value={draft.pitNo || ''}
           onChange={(e) => onDraftChange({ pitNo: e.target.value })}
           placeholder="PIT#"
           className="w-14 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -40,7 +40,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
         <input
           type="text"
           inputMode="numeric"
-          value={draft.carNo}
+          value={draft.carNo || ''}
           onChange={(e) => onDraftChange({ carNo: e.target.value })}
           placeholder="Car#"
           className="w-14 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -48,7 +48,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
         {/* Driver — テキスト入力のみ（グローブ対応でシンプル化） */}
         <input
           type="text"
-          value={draft.pitInDriver}
+          value={draft.pitInDriver || ''}
           onChange={(e) => onDraftChange({ pitInDriver: e.target.value })}
           placeholder="Drv"
           className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"

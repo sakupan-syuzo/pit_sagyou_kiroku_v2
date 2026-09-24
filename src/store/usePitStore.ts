@@ -128,7 +128,7 @@ export const usePitStore = create<PitStore>()(
           const next = [...s.laneStates];
           next[index] = {
             ...initialLaneState(),
-            continuousMode: s.laneStates[index].continuousMode,
+            continuousMode: s.laneStates[index]?.continuousMode ?? false,
           };
           return { laneStates: next };
         }),
@@ -167,7 +167,6 @@ export const usePitStore = create<PitStore>()(
               .filter(Boolean)
               .map((r) => {
                 const record = r as Record<string, unknown>;
-                // pitInAt: pitInTime (HH:mm:ss) から当日の epoch を補完、不能なら createdAt
                 if (record.pitInAt === undefined || record.pitInAt === null) {
                   const timeStr = record.pitInTime as string | undefined;
                   const createdAt = (record.createdAt as number | undefined) ?? Date.now();

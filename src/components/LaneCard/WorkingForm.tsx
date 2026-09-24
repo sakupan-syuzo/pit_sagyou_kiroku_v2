@@ -33,13 +33,16 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
   onHandover,
   onPitOut,
 }) => {
+  const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
+  const labelText = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
+
   return (
     <div className="flex flex-col">
       {/* ======= ヘッダー: レーン番号 + Car No. ======= */}
-      <div className={`${LANE_HEADER_COLORS[laneIndex]} text-white px-3 py-2`}>
+      <div className={`${headerColor} text-white px-3 py-2`}>
         <div className="flex items-baseline justify-between gap-1">
           <span className="text-xs font-black tracking-widest opacity-80">
-            {LANE_LABELS[laneIndex]}
+            {labelText}
           </span>
           <span className="text-3xl font-black leading-none tracking-tight">
             {draft.carNo || '—'}
@@ -47,7 +50,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
         </div>
         {/* PIT IN時刻 */}
         <div className="text-xs font-mono opacity-75 mt-0.5">
-          IN {draft.pitInTime}
+          IN {draft.pitInTime || '--:--:--'}
           {continuousMode && (
             <span className="ml-2 bg-white/20 rounded px-1">🔄 連続</span>
           )}
@@ -177,7 +180,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
           <p className="text-xs font-black text-gray-500 mb-1">📝 メモ</p>
           <input
             type="text"
-            value={draft.other}
+            value={draft.other || ''}
             onChange={(e) => onDraftChange({ other: e.target.value })}
             placeholder="例: エアプレッシャー調整"
             className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-base font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
