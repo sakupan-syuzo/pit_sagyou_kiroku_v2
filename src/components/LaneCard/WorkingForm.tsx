@@ -27,7 +27,6 @@ interface WorkingFormProps {
 const WorkingForm: React.FC<WorkingFormProps> = ({
   laneIndex,
   draft,
-  continuousMode,
   onDraftChange,
   onCancel,
   onHandover,
@@ -48,13 +47,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
             {draft.carNo || '—'}
           </span>
         </div>
-        {/* PIT IN時刻 */}
-        <div className="text-xs font-mono opacity-75 mt-0.5">
-          IN {draft.pitInTime || '--:--:--'}
-          {continuousMode && (
-            <span className="ml-2 bg-white/20 rounded px-1">🔄 連続</span>
-          )}
-        </div>
+
       </div>
 
       {/* ======= ボディ ======= */}

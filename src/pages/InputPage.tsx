@@ -236,7 +236,7 @@ const InputPage: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* ---- 上部: 待機中レーンのダッシュボード ---- */}
         {standbyLanes.length > 0 && !showHistory && (
-          <div className="flex-none bg-white border-b border-gray-200 px-2 py-2 space-y-1.5 overflow-y-auto max-h-[45vh]">
+          <div className="flex-none bg-white border-b border-gray-200 px-2 py-2 space-y-1.5 overflow-y-auto max-h-[244px]">
             <p className="text-xs font-bold text-gray-400 px-1">⚪ 待機中レーン — 事前入力エリア</p>
             {standbyLanes.map((laneIndex) => {
               const ls = laneStates[laneIndex];
