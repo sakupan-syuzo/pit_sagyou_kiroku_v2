@@ -1,6 +1,8 @@
 import React from 'react';
 import type { LaneDraft } from '../../types';
 
+import { usePitStore } from '../../store/usePitStore';
+
 // レーンヘッダー色（InputPage と合わせる）
 const LANE_LABELS = [
   'LANE 1', 'LANE 2', 'LANE 3', 'LANE 4', 'LANE 5',
@@ -12,7 +14,7 @@ const LANE_HEADER_COLORS = [
   'bg-pink-600', 'bg-indigo-600',
 ];
 
-const DRIVER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+const DEFAULT_DRIVER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 interface WorkingFormProps {
   laneIndex: number;
@@ -34,6 +36,10 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
 }) => {
   const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
   const labelText = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
+  
+  const entries = usePitStore((s) => s.entries);
+  const entry = draft.carNo ? entries[draft.carNo] : undefined;
+  const labels = entry?.drivers && entry.drivers.length > 0 ? entry.drivers : (DEFAULT_DRIVER_LABELS as readonly string[]);
 
   return (
     <div className="flex flex-col">
@@ -143,7 +149,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
           
           {draft.isDriverChanged && (
             <div className="flex flex-wrap gap-1">
-              {DRIVER_LABELS.map((label) => {
+              {labels.map((label) => {
                 const isExcluded = label === draft.pitInDriver;
                 const isSelected = draft.pitOutDriver === label;
                 return (
@@ -152,7 +158,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                     type="button"
                     disabled={isExcluded}
                     onClick={() => !isExcluded && onDraftChange({ pitOutDriver: label })}
-                    className={`flex-1 min-w-[2.5rem] h-12 rounded-xl font-black text-lg border-2 transition-colors ${
+                    className={`flex-1 min-w-[3rem] h-12 rounded-xl font-black text-sm leading-tight break-words border-2 transition-colors ${
                       isExcluded
                         ? 'bg-gray-100 text-gray-300 border-gray-200 line-through cursor-not-allowed'
                         : isSelected
@@ -167,10 +173,10 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
               {/* カスタム入力 */}
               <input
                 type="text"
-                value={DRIVER_LABELS.includes(draft.pitOutDriver as typeof DRIVER_LABELS[number]) ? '' : draft.pitOutDriver}
+                value={labels.includes(draft.pitOutDriver) ? '' : draft.pitOutDriver}
                 onChange={(e) => onDraftChange({ pitOutDriver: e.target.value })}
                 placeholder="その他"
-                className="flex-1 min-w-[3.5rem] h-12 border-2 border-gray-200 rounded-xl px-2 text-base font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex-1 min-w-[3.5rem] h-12 border-2 border-gray-200 rounded-xl px-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
           )}

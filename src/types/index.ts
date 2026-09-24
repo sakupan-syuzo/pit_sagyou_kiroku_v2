@@ -16,7 +16,7 @@ export type PitRecord = {
   other: string;
 };
 
-/** レーンの一時的な作業中状態 (localStorage非永続) */
+/** レーンの一時的な作業中状態 */
 export type LaneStatus = 'standby' | 'working';
 
 export type LaneDraft = {
@@ -32,4 +32,12 @@ export type LaneDraft = {
   tires: number;
   other: string;
   createdAt: number;
+};
+
+/** マスターデータ（エントリーリスト） */
+export type Entry = {
+  id: string;
+  carNo: string;
+  drivers: string[];
+  team?: string;
 };

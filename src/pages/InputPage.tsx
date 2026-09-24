@@ -7,6 +7,7 @@ import WorkingForm from '../components/LaneCard/WorkingForm';
 import EditModal from '../components/EditModal';
 import { usePitStore, initialLaneState } from '../store/usePitStore';
 import type { LaneDraft, PitRecord } from '../types';
+import MasterDataModal from '../components/MasterDataModal';
 
 const LANE_LABELS = [
   'LANE 1', 'LANE 2', 'LANE 3', 'LANE 4', 'LANE 5',
@@ -38,6 +39,7 @@ const getNowTime = (): string => {
 const InputPage: React.FC = () => {
   const [editingRecord, setEditingRecord] = React.useState<PitRecord | null>(null);
   const [isWakeLockActive, setIsWakeLockActive] = React.useState(false);
+  const [showMasterModal, setShowMasterModal] = React.useState(false);
   const wakeLockRef = React.useRef<any>(null);
 
   const toggleWakeLock = async () => {
@@ -227,6 +229,15 @@ const InputPage: React.FC = () => {
 
         <button
           type="button"
+          onClick={() => setShowMasterModal(true)}
+          className="text-xs font-bold text-blue-600 border border-blue-300 rounded px-2 py-1 bg-white hover:bg-blue-50 active:bg-blue-100 transition-colors shrink-0"
+          title="マスターデータを設定します"
+        >
+          ⚙️ 登録
+        </button>
+
+        <button
+          type="button"
           onClick={toggleWakeLock}
           className={`text-xs font-bold border rounded px-2 py-1 transition-colors shrink-0 ${
             isWakeLockActive
@@ -333,6 +344,7 @@ const InputPage: React.FC = () => {
       </div>
 
       <EditModal record={editingRecord} onClose={() => setEditingRecord(null)} />
+      {showMasterModal && <MasterDataModal onClose={() => setShowMasterModal(false)} />}
     </div>
   );
 };

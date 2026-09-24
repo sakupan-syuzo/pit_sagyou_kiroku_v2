@@ -11,6 +11,11 @@ interface StandbyFormProps {
 
 const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn }) => {
   const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition) || 'right';
+  const entries = usePitStore((s) => s.entries);
+
+  // エントリーからドライバー名を取得
+  const entry = draft.carNo ? entries[draft.carNo] : undefined;
+  const driverLabels = entry?.drivers;
 
   return (
     <div
@@ -52,6 +57,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
             value={draft.pitInDriver || ''}
             onChange={(v) => onDraftChange({ pitInDriver: v })}
             placeholder="Drv"
+            driverLabels={driverLabels}
           />
         </div>
       </div>

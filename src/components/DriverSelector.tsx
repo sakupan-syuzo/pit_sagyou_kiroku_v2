@@ -1,8 +1,7 @@
 import React from 'react';
 import { PenLine } from 'lucide-react';
 
-const DRIVER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
-export type DriverLabel = (typeof DRIVER_LABELS)[number];
+const DEFAULT_DRIVER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 interface DriverSelectorProps {
   value: string;
@@ -10,6 +9,7 @@ interface DriverSelectorProps {
   placeholder?: string;
   /** 選択不可にするラベル（例: PIT INで選んだ "A" を除外） */
   excludeLabels?: string[];
+  driverLabels?: string[];
 }
 
 /**
@@ -22,9 +22,12 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   onChange,
   placeholder = 'ドライバー名',
   excludeLabels = [],
+  driverLabels,
 }) => {
-  // A/B/C/D のいずれかが選択されているか
-  const isPreset = (DRIVER_LABELS as readonly string[]).includes(value);
+  const labels = driverLabels && driverLabels.length > 0 ? driverLabels : (DEFAULT_DRIVER_LABELS as readonly string[]);
+
+  // プリセットに含まれているか
+  const isPreset = labels.includes(value);
 
   // マウント時: 値が空またはプリセット値であれば入力モードOFF
   const [inputMode, setInputMode] = React.useState<boolean>(
@@ -48,8 +51,8 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   return (
     <div className="space-y-1.5">
       {/* プリセットボタン行（A〜F + 入力トグル） */}
-      <div className="flex gap-0.5 items-center">
-        {DRIVER_LABELS.map((label) => {
+      <div className="flex gap-0.5 items-center flex-wrap">
+        {labels.map((label) => {
           const isExcluded = excludeLabels.includes(label);
           const isSelected = value === label && !inputMode;
           return (
@@ -59,7 +62,7 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
               disabled={isExcluded}
               onClick={() => !isExcluded && handlePreset(label)}
               title={isExcluded ? `${label}: PIT INで使用中` : undefined}
-              className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-colors ${
+              className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-colors leading-tight break-words min-w-[2.5rem] ${
                 isExcluded
                   ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed line-through'
                   : isSelected
