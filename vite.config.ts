@@ -18,6 +18,8 @@ export default defineConfig({
         'apple-touch-icon.png',
       ],
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         // 15MB まで（フォントファイル対応）
         maximumFileSizeToCacheInBytes: 15728640,
         globPatterns: [
