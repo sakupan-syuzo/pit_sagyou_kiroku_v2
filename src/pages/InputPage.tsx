@@ -8,7 +8,6 @@ import EditModal from '../components/EditModal';
 import { usePitStore, initialLaneState } from '../store/usePitStore';
 import type { LaneDraft, PitRecord } from '../types';
 
-// レーンカラー定義
 const LANE_LABELS = [
   'LANE 1', 'LANE 2', 'LANE 3', 'LANE 4', 'LANE 5',
   'LANE 6', 'LANE 7', 'LANE 8', 'LANE 9', 'LANE 10',
@@ -51,7 +50,7 @@ const InputPage: React.FC = () => {
   const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition);
   const setPitInButtonPosition = usePitStore((s) => s.setPitInButtonPosition);
 
-  // ---- レーンごとのイベントハンドラファクトリ ----
+  // ---- イベントハンドラファクトリ ----
   const makeHandlePitIn = (laneIndex: number) => () => {
     const draft = laneStates[laneIndex]?.draft;
     if (!draft) return;
@@ -150,13 +149,9 @@ const InputPage: React.FC = () => {
     setLaneState(laneIndex, { continuousMode: !ls.continuousMode });
   };
 
-  // ---- レーン数変更 ----
   const handleLaneCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const next = Number(e.target.value);
-    if (next >= laneCount) {
-      setLaneCount(next);
-      return;
-    }
+    if (next >= laneCount) { setLaneCount(next); return; }
     const hasWorkingData = laneStates.slice(next).some((ls) => ls?.status === 'working');
     if (hasWorkingData) {
       if (!window.confirm(
@@ -173,17 +168,17 @@ const InputPage: React.FC = () => {
     }
   };
 
-  // standby レーンのみリスト（上部ダッシュボード用）
-  const standbyLanes = Array.from({ length: laneCount }, (_, i) => i)
-    .filter((i) => laneStates[i]?.status === 'standby');
+  const allLaneIndices = Array.from({ length: laneCount }, (_, i) => i);
+  const standbyLanes = allLaneIndices.filter((i) => laneStates[i]?.status === 'standby');
+  const workingLanes = allLaneIndices.filter((i) => laneStates[i]?.status === 'working');
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
+
       {/* ========== ツールバー ========== */}
       <div className="flex-none bg-white border-b border-gray-200 px-3 py-2 flex items-center gap-2 shadow-sm">
         <h1 className="text-sm font-black text-gray-800 shrink-0">🏁 PIT REC</h1>
 
-        {/* レーン数 */}
         <div className="flex items-center gap-1">
           <label className="text-xs text-gray-500 font-bold shrink-0">レーン</label>
           <select
@@ -197,17 +192,14 @@ const InputPage: React.FC = () => {
           </select>
         </div>
 
-        {/* PIT INボタン位置切り替え */}
         <button
           type="button"
           onClick={() => setPitInButtonPosition(pitInButtonPosition === 'right' ? 'left' : 'right')}
           className="text-xs font-bold text-gray-600 border border-gray-300 rounded px-2 py-1 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors shrink-0"
-          title="PIT INボタンの位置を左右切り替え"
         >
           {pitInButtonPosition === 'right' ? '⬅ IN左' : 'IN右 ➡'}
         </button>
 
-        {/* 履歴トグル */}
         <button
           type="button"
           onClick={() => setShowHistory((v) => !v)}
@@ -222,7 +214,6 @@ const InputPage: React.FC = () => {
 
         <div className="flex-1" />
 
-        {/* 全クリア */}
         <button
           onClick={handleClearAll}
           className="flex items-center gap-1 text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-2 py-1 rounded border border-red-100 transition-colors shrink-0"
@@ -232,45 +223,37 @@ const InputPage: React.FC = () => {
         </button>
       </div>
 
-      {/* ========== メインエリア（上下分割） ========== */}
+      {/* ========== メインエリア ========== */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* ---- 上部: 待機中レーンのダッシュボード ---- */}
+
+        {/* ---- 待機中レーン（上・flex-1 で残り全部） ---- */}
         {standbyLanes.length > 0 && !showHistory && (
-          <div className="flex-none bg-white border-b border-gray-200 px-2 py-2 space-y-1.5 overflow-y-auto max-h-[244px]">
-            <p className="text-xs font-bold text-gray-400 px-1">⚪ 待機中レーン — 事前入力エリア</p>
+          <div className="flex-1 overflow-y-auto bg-white px-2 py-2 space-y-1.5">
             {standbyLanes.map((laneIndex) => {
               const ls = laneStates[laneIndex];
               if (!ls) return null;
-              const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
-              const borderColor = LANE_BORDER_COLORS[laneIndex] || 'border-gray-500';
-              const label = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
+              const headerColor = LANE_HEADER_COLORS[laneIndex] ?? 'bg-gray-500';
+              const borderColor = LANE_BORDER_COLORS[laneIndex] ?? 'border-gray-300';
+              const label = LANE_LABELS[laneIndex] ?? `LANE ${laneIndex + 1}`;
 
               return (
-                <div
-                  key={laneIndex}
-                  className={`rounded-xl border ${borderColor} overflow-hidden`}
-                >
+                <div key={laneIndex} className={`rounded-xl border ${borderColor} overflow-hidden`}>
+                  {/* レーンヘッダー */}
                   <div className={`${headerColor} text-white px-3 py-1 flex items-center justify-between`}>
                     <span className="text-xs font-black tracking-wider">{label}</span>
+                    {/* 連続モードトグル */}
                     <button
                       type="button"
                       onClick={makeHandleToggleContinuous(laneIndex)}
                       className="flex items-center gap-1 text-xs text-white/80"
                     >
                       🔄
-                      <span
-                        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                          ls.continuousMode ? 'bg-white/70' : 'bg-white/20'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-3 w-3 transform rounded-full shadow transition-transform ${
-                            ls.continuousMode ? 'translate-x-3.5 bg-blue-600' : 'translate-x-0.5 bg-white/60'
-                          }`}
-                        />
+                      <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${ls.continuousMode ? 'bg-white/70' : 'bg-white/20'}`}>
+                        <span className={`inline-block h-3 w-3 transform rounded-full shadow transition-transform ${ls.continuousMode ? 'translate-x-3.5 bg-blue-600' : 'translate-x-0.5 bg-white/60'}`} />
                       </span>
                     </button>
                   </div>
+                  {/* StandbyForm */}
                   <div className="px-2 py-1.5">
                     <StandbyForm
                       draft={ls.draft}
@@ -284,46 +267,34 @@ const InputPage: React.FC = () => {
           </div>
         )}
 
-        {/* ---- 下部: 全レーン数分の固定2列グリッド（作業エリア） ---- */}
-        {!showHistory && (
-          <div className="flex-1 overflow-y-auto p-2">
+        {/* standby が 0 かつ working もある場合は working が flex-1 を取る */}
+        {standbyLanes.length === 0 && workingLanes.length === 0 && !showHistory && (
+          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+            レーンを選択して開始してください
+          </div>
+        )}
+
+        {/* ---- 作業中レーン（下・working があるときのみ表示） ---- */}
+        {workingLanes.length > 0 && !showHistory && (
+          <div className={`${standbyLanes.length > 0 ? 'flex-none max-h-[60vh]' : 'flex-1'} overflow-y-auto border-t-2 border-gray-300 bg-gray-100 p-2`}>
             <div className="grid grid-cols-2 gap-2">
-              {Array.from({ length: laneCount }, (_, laneIndex) => {
+              {workingLanes.map((laneIndex) => {
                 const ls = laneStates[laneIndex];
-                if (!ls) return <div key={laneIndex} />;
-                const isWorking = ls.status === 'working';
-                const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
-                const borderColor = LANE_BORDER_COLORS[laneIndex] || 'border-gray-300';
-                const bgColor = LANE_BG_COLORS[laneIndex] || 'bg-gray-50';
-                const label = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
+                if (!ls) return null;
+                const borderColor = LANE_BORDER_COLORS[laneIndex] ?? 'border-gray-300';
+                const bgColor = LANE_BG_COLORS[laneIndex] ?? 'bg-gray-50';
 
                 return (
-                  <div
-                    key={laneIndex}
-                    className={`rounded-xl border-2 overflow-hidden ${
-                      isWorking
-                        ? `${borderColor} ${bgColor}`
-                        : 'border-gray-200 bg-gray-50'
-                    }`}
-                  >
-                    {isWorking ? (
-                      <WorkingForm
-                        laneIndex={laneIndex}
-                        draft={ls.draft}
-                        continuousMode={ls.continuousMode}
-                        onDraftChange={makeHandleDraftChange(laneIndex)}
-                        onCancel={makeHandleCancel(laneIndex)}
-                        onHandover={makeHandleHandover(laneIndex)}
-                        onPitOut={makeHandlePitOut(laneIndex)}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full min-h-[100px] gap-1 p-2">
-                        <span className={`text-xs font-black ${headerColor.replace('bg-', 'text-')}`}>
-                          {label}
-                        </span>
-                        <span className="text-xs text-gray-400">⚪ 待機中</span>
-                      </div>
-                    )}
+                  <div key={laneIndex} className={`rounded-xl border-2 overflow-hidden ${borderColor} ${bgColor}`}>
+                    <WorkingForm
+                      laneIndex={laneIndex}
+                      draft={ls.draft}
+                      continuousMode={ls.continuousMode}
+                      onDraftChange={makeHandleDraftChange(laneIndex)}
+                      onCancel={makeHandleCancel(laneIndex)}
+                      onHandover={makeHandleHandover(laneIndex)}
+                      onPitOut={makeHandlePitOut(laneIndex)}
+                    />
                   </div>
                 );
               })}

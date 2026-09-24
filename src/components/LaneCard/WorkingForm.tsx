@@ -37,15 +37,23 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
 
   return (
     <div className="flex flex-col">
-      {/* ======= ヘッダー: レーン番号 + Car No. ======= */}
+      {/* ======= ヘッダー ======= */}
       <div className={`${headerColor} text-white px-3 py-2`}>
-        <div className="flex items-baseline justify-between gap-1">
-          <span className="text-xs font-black tracking-widest opacity-80">
+        <div className="flex items-end justify-between gap-2">
+          {/* LANE ラベル */}
+          <span className="text-xs font-black tracking-widest opacity-80 shrink-0 pb-0.5">
             {labelText}
           </span>
-          <span className="text-3xl font-black leading-none tracking-tight">
-            {draft.carNo || '—'}
-          </span>
+          {/* PIT No. */}
+          <div className="flex flex-col items-center leading-none">
+            <span className="text-xs font-black tracking-widest opacity-80">PIT</span>
+            <span className="text-3xl font-black leading-none">{draft.pitNo || '—'}</span>
+          </div>
+          {/* Car No. */}
+          <div className="flex flex-col items-center leading-none">
+            <span className="text-xs font-black tracking-widest opacity-80">Car</span>
+            <span className="text-3xl font-black leading-none">{draft.carNo || '—'}</span>
+          </div>
         </div>
 
       </div>
