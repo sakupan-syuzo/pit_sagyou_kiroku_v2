@@ -1,6 +1,7 @@
 import React from 'react';
 import type { LaneDraft } from '../../types';
 import { usePitStore } from '../../store/usePitStore';
+import DriverSelector from '../DriverSelector';
 
 interface StandbyFormProps {
   draft: LaneDraft;
@@ -25,7 +26,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
         🏎️ IN
       </button>
 
-      {/* 入力フィールド群（flex-1 で残りスペースを埋める） */}
+      {/* 入力フィールド群 */}
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
         {/* PIT No. */}
         <input
@@ -45,14 +46,14 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           placeholder="Car#"
           className="w-14 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        {/* Driver — テキスト入力のみ（グローブ対応でシンプル化） */}
-        <input
-          type="text"
-          value={draft.pitInDriver || ''}
-          onChange={(e) => onDraftChange({ pitInDriver: e.target.value })}
-          placeholder="Drv"
-          className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        {/* INドライバー: DriverSelector */}
+        <div className="flex-1 min-w-0">
+          <DriverSelector
+            value={draft.pitInDriver || ''}
+            onChange={(v) => onDraftChange({ pitInDriver: v })}
+            placeholder="Drv"
+          />
+        </div>
       </div>
     </div>
   );
