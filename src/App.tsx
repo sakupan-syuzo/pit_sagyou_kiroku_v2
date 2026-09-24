@@ -10,8 +10,8 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-dvh bg-gray-100">
-      {/* メインコンテンツ */}
-      <main>
+      {/* メインコンテンツ — TabNav(約56px)の分だけ下に余白 */}
+      <main className="h-dvh pb-14">
         {activeTab === 'input' && <InputPage />}
         {activeTab === 'pdf' && <PdfPage />}
       </main>

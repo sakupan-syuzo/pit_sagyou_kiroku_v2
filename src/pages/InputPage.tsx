@@ -173,7 +173,7 @@ const InputPage: React.FC = () => {
   const workingLanes = allLaneIndices.filter((i) => laneStates[i]?.status === 'working');
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-100 overflow-hidden">
 
       {/* ========== ツールバー ========== */}
       <div className="flex-none bg-white border-b border-gray-200 px-3 py-2 flex items-center gap-2 shadow-sm">
@@ -245,8 +245,9 @@ const InputPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={makeHandleToggleContinuous(laneIndex)}
-                      className="flex items-center gap-1 text-xs text-white/80"
+                      className="flex items-center gap-1 text-xs text-white/80 font-bold"
                     >
+                      <span>連続</span>
                       🔄
                       <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${ls.continuousMode ? 'bg-white/70' : 'bg-white/20'}`}>
                         <span className={`inline-block h-3 w-3 transform rounded-full shadow transition-transform ${ls.continuousMode ? 'translate-x-3.5 bg-blue-600' : 'translate-x-0.5 bg-white/60'}`} />
