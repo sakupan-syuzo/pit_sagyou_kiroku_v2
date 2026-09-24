@@ -13,7 +13,7 @@ type OutputFormat = 'pdf' | 'csv';
 /** レコード1件をCSV行に変換 */
 const recordToCsvRow = (r: PitRecord, index: number): string => {
   const outDriver = r.isDriverChanged ? r.pitOutDriver : r.pitInDriver;
-  const duration = calcDuration(r.pitInTime, r.pitOutTime);
+  const duration = calcDuration(r.pitInAt, r.pitOutAt);
   const cells = [
     index + 1,
     r.pitNo,

@@ -58,7 +58,7 @@ const HistoryList: React.FC<HistoryListProps> = ({ onEditRecord }) => {
                   <>
                     <span className="ml-3">OUT: <span className="text-gray-800 font-bold">{record.pitOutTime}</span></span>
                     <span className="ml-3 text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
-                      滞在: {calcDuration(record.pitInTime, record.pitOutTime)}
+                      滞在: {calcDuration(record.pitInAt, record.pitOutAt)}
                     </span>
                   </>
                 ) : (

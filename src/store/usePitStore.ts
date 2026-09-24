@@ -141,44 +141,55 @@ export const usePitStore = create<PitStore>()(
       name: 'pit-records-storage',
       version: 1,
       migrate: (persistedState: unknown, fromVersion: number) => {
-        const state = persistedState as Record<string, unknown>;
+        const state = persistedState as Record<string, unknown> | null;
+        if (!state) return state as unknown as PitStore;
 
         if (fromVersion < 1) {
+          if (!Array.isArray(state.records)) {
+            state.records = [];
+          }
+          if (!Array.isArray(state.laneStates)) {
+            state.laneStates = [initialLaneState(), initialLaneState()];
+          }
+          
           // PitRecord に pitInAt / pitOutAt を補完
           if (Array.isArray(state.records)) {
-            state.records = (state.records as Record<string, unknown>[]).map((r) => {
-              const record = r as Record<string, unknown>;
-              // pitInAt: pitInTime (HH:mm:ss) から当日の epoch を補完、不能なら createdAt
-              if (record.pitInAt === undefined || record.pitInAt === null) {
-                const timeStr = record.pitInTime as string | undefined;
-                const createdAt = (record.createdAt as number | undefined) ?? Date.now();
-                if (timeStr && /^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
-                  const base = new Date(createdAt);
-                  const [hh, mm, ss] = timeStr.split(':').map(Number);
-                  base.setHours(hh, mm, ss, 0);
-                  record.pitInAt = base.getTime();
-                } else {
-                  record.pitInAt = createdAt;
+            state.records = (state.records as Record<string, unknown>[])
+              .filter(Boolean)
+              .map((r) => {
+                const record = r as Record<string, unknown>;
+                // pitInAt: pitInTime (HH:mm:ss) から当日の epoch を補完、不能なら createdAt
+                if (record.pitInAt === undefined || record.pitInAt === null) {
+                  const timeStr = record.pitInTime as string | undefined;
+                  const createdAt = (record.createdAt as number | undefined) ?? Date.now();
+                  if (timeStr && /^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
+                    const base = new Date(createdAt);
+                    const [hh, mm, ss] = timeStr.split(':').map(Number);
+                    base.setHours(hh, mm, ss, 0);
+                    record.pitInAt = base.getTime();
+                  } else {
+                    record.pitInAt = createdAt;
+                  }
                 }
-              }
-              if (record.pitOutAt === undefined) {
-                const outTime = record.pitOutTime as string | undefined;
-                if (outTime && /^\d{2}:\d{2}:\d{2}$/.test(outTime)) {
-                  const base = new Date((record.pitInAt as number));
-                  const [hh, mm, ss] = outTime.split(':').map(Number);
-                  base.setHours(hh, mm, ss, 0);
-                  record.pitOutAt = base.getTime();
-                } else {
-                  record.pitOutAt = null;
+                if (record.pitOutAt === undefined) {
+                  const outTime = record.pitOutTime as string | undefined;
+                  if (outTime && /^\d{2}:\d{2}:\d{2}$/.test(outTime)) {
+                    const base = new Date((record.pitInAt as number));
+                    const [hh, mm, ss] = outTime.split(':').map(Number);
+                    base.setHours(hh, mm, ss, 0);
+                    record.pitOutAt = base.getTime();
+                  } else {
+                    record.pitOutAt = null;
+                  }
                 }
-              }
-              return record;
-            });
+                return record;
+              });
           }
 
           // LaneState.draft に pitInAt / pitOutAt を補完
           if (Array.isArray(state.laneStates)) {
             state.laneStates = (state.laneStates as Record<string, unknown>[]).map((ls) => {
+              if (!ls) return initialLaneState() as unknown as Record<string, unknown>;
               const laneState = ls as Record<string, unknown>;
               const draft = (laneState.draft ?? {}) as Record<string, unknown>;
               if (draft.pitInAt === undefined || draft.pitInAt === null) {
@@ -202,7 +213,7 @@ export const usePitStore = create<PitStore>()(
           }
         }
 
-        return state as PitStore;
+        return state as unknown as PitStore;
       },
     }
   )

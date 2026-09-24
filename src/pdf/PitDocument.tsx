@@ -264,7 +264,7 @@ const PitDocument: React.FC<PitDocumentProps> = ({ records, sessionName, inspect
                   </View>
                   {/* 滞在時間 */}
                   <View style={[styles.cell, styles.colDuration]}>
-                    <Text style={styles.cellText}>{calcDuration(record.pitInTime, record.pitOutTime)}</Text>
+                    <Text style={styles.cellText}>{calcDuration(record.pitInAt, record.pitOutAt)}</Text>
                   </View>
                   {/* PIT INドライバー */}
                   <View style={[styles.cell, styles.colPitInDriver]}>

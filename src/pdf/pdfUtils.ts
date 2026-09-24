@@ -53,22 +53,13 @@ export function buildPageGroups(records: PitRecord[]): PageGroup[] {
 
 export const formatBool = (v: boolean): string => (v ? 'あり' : 'なし');
 
-export const calcDuration = (inTime: string, outTime: string): string => {
-  if (!inTime || !outTime) return '';
-  const [inH, inM, inS] = inTime.split(':').map(Number);
-  const [outH, outM, outS] = outTime.split(':').map(Number);
+export const calcDuration = (inTimeAt: number | undefined, outTimeAt: number | null | undefined): string => {
+  if (!inTimeAt || !outTimeAt) return '';
 
-  const inDate = new Date(2000, 0, 1, inH, inM, inS || 0);
-  let outDate = new Date(2000, 0, 1, outH, outM, outS || 0);
-
-  if (outDate < inDate) {
-    // 日をまたいだ場合
-    outDate.setDate(outDate.getDate() + 1);
-  }
-
-  const diffMs = outDate.getTime() - inDate.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
+  const diffMs = outTimeAt - inTimeAt;
+  if (diffMs < 0) return '';
   
+  const diffSec = Math.floor(diffMs / 1000);
   const m = Math.floor(diffSec / 60);
   const s = diffSec % 60;
   
