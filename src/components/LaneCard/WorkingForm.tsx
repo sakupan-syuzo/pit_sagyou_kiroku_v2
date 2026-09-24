@@ -79,39 +79,64 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
           </div>
         </div>
 
-        {/* ---- 給油: 巨大トグル ---- */}
+        {/* ---- 給油: 巨大セグメントコントロール ---- */}
         <div>
           <p className="text-xs font-black text-gray-500 mb-1">⛽ 給油</p>
-          <button
-            type="button"
-            onClick={() => onDraftChange({ refuel: !draft.refuel })}
-            className={`w-full h-14 rounded-xl font-black text-xl border-2 transition-colors ${
-              draft.refuel
-                ? 'bg-orange-500 text-white border-orange-500 shadow-lg'
-                : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
-            }`}
-          >
-            {draft.refuel ? '⛽ 給油 あり' : '給油 なし'}
-          </button>
-        </div>
-
-        {/* ---- OUTドライバー変更 ---- */}
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <p className="text-xs font-black text-gray-500">🧑‍✈️ OUTドライバー</p>
-            {/* 交代スイッチ */}
+          <div className="flex gap-1">
             <button
               type="button"
-              onClick={() => onDraftChange({ isDriverChanged: !draft.isDriverChanged, pitOutDriver: '' })}
-              className={`px-2 py-0.5 rounded-full text-xs font-bold border transition-colors ${
-                draft.isDriverChanged
-                  ? 'bg-purple-600 text-white border-purple-600'
-                  : 'bg-white text-gray-400 border-gray-300'
+              onClick={() => onDraftChange({ refuel: false })}
+              className={`flex-1 h-14 rounded-xl font-black text-xl border-2 transition-colors ${
+                !draft.refuel
+                  ? 'bg-gray-500 text-white border-gray-500 shadow-inner'
+                  : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
               }`}
             >
-              {draft.isDriverChanged ? '交代あり' : '交代なし'}
+              なし
+            </button>
+            <button
+              type="button"
+              onClick={() => onDraftChange({ refuel: true })}
+              className={`flex-1 h-14 rounded-xl font-black text-xl border-2 transition-colors ${
+                draft.refuel
+                  ? 'bg-orange-500 text-white border-orange-500 shadow-lg'
+                  : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
+              }`}
+            >
+              ⛽ あり
             </button>
           </div>
+        </div>
+
+        {/* ---- OUTドライバー変更: セグメントコントロール ---- */}
+        <div>
+          <p className="text-xs font-black text-gray-500 mb-1">🧑‍✈️ OUTドライバー</p>
+          <div className="flex gap-1 mb-1">
+            <button
+              type="button"
+              onClick={() => onDraftChange({ isDriverChanged: false, pitOutDriver: '' })}
+              className={`flex-1 h-14 rounded-xl border-2 transition-colors flex flex-col items-center justify-center leading-tight ${
+                !draft.isDriverChanged
+                  ? 'bg-gray-500 text-white border-gray-500 shadow-inner'
+                  : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
+              }`}
+            >
+              <span className="text-xs font-bold opacity-80">継続</span>
+              <span className="font-black text-xl">{draft.pitInDriver || '未設定'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onDraftChange({ isDriverChanged: true, pitOutDriver: '' })}
+              className={`flex-1 h-14 rounded-xl font-black text-lg border-2 transition-colors flex items-center justify-center gap-1 ${
+                draft.isDriverChanged
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
+                  : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
+              }`}
+            >
+              <span className="text-xl">🔄</span> 交代する
+            </button>
+          </div>
+          
           {draft.isDriverChanged && (
             <div className="flex flex-wrap gap-1">
               {DRIVER_LABELS.map((label) => {
@@ -143,11 +168,6 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                 placeholder="その他"
                 className="flex-1 min-w-[3.5rem] h-12 border-2 border-gray-200 rounded-xl px-2 text-base font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
-            </div>
-          )}
-          {!draft.isDriverChanged && (
-            <div className="text-sm font-bold text-gray-500 px-1">
-              → {draft.pitInDriver || '（未設定）'}
             </div>
           )}
         </div>
