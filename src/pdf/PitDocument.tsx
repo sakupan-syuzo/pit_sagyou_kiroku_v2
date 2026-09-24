@@ -7,12 +7,10 @@ import {
   StyleSheet,
   Font,
 } from '@react-pdf/renderer';
-import type { PitRecord } from '../types';
+import type { PitRecord, Entry } from '../types';
 import { buildPageGroups, formatBool, calcDuration } from './pdfUtils';
 
-// フォントURL解決（GitHub Pagesのサブパス /pit_sagyou_kiroku/ にも対応）
-// window.location.href を基準にすることで、どの環境でも正しく解決される
-// 例: https://sakupan-syuzo.github.io/pit_sagyou_kiroku/BIZUDPGothic-Regular.ttf
+// フォントURL解決
 const getFontUrl = (filename: string): string => {
   if (typeof window !== 'undefined') {
     return new URL(filename, window.location.href).href;
@@ -20,7 +18,6 @@ const getFontUrl = (filename: string): string => {
   return `/${filename}`;
 };
 
-// フォント登録
 Font.register({
   family: 'BIZUDPGothic',
   fonts: [
@@ -29,7 +26,6 @@ Font.register({
   ],
 });
 
-// ハイフネーション無効化
 Font.registerHyphenationCallback((word) => [word]);
 
 const FONT = 'BIZUDPGothic';
@@ -43,15 +39,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     backgroundColor: '#ffffff',
   },
-  // ヘッダー
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
     paddingBottom: 4,
     borderBottomWidth: 1.5,
     borderBottomColor: '#1e3a5f',
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 2,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   headerTitle: {
     fontSize: 14,
@@ -59,11 +64,17 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: '#1e3a5f',
   },
+  headerDrivers: {
+    fontSize: 8,
+    color: '#333',
+    fontFamily: FONT,
+    flex: 1,
+    paddingTop: 4,
+  },
   headerSub: {
     fontSize: 9,
     color: '#555',
     fontFamily: FONT,
-    marginTop: 2,
   },
   headerPageInfo: {
     fontSize: 10,
@@ -71,6 +82,7 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: '#1e3a5f',
     textAlign: 'right',
+    width: 100,
   },
   // テーブル
   table: {
@@ -91,7 +103,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ccc',
     backgroundColor: '#f7f9fc',
   },
-  // セル共通
   cell: {
     paddingVertical: 3,
     paddingHorizontal: 3,
@@ -110,7 +121,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  // 列幅定義 (合計100%)
   colNo: { width: '4%' },
   colPitNo: { width: '5%' },
   colCarNo: { width: '5%' },
@@ -123,7 +133,6 @@ const styles = StyleSheet.create({
   colRefuel: { width: '6%' },
   colTires: { width: '6%' },
   colOther: { width: '28%' },
-  // フッター
   footer: {
     position: 'absolute',
     bottom: 20,
@@ -176,6 +185,7 @@ interface PitDocumentProps {
   records: PitRecord[];
   sessionName: string;
   inspector: string;
+  entries?: Record<string, Entry>;
 }
 
 const FooterLine: React.FC<{ label: string; value: string }> = ({ label, value }) => (
@@ -187,7 +197,7 @@ const FooterLine: React.FC<{ label: string; value: string }> = ({ label, value }
   </View>
 );
 
-const PitDocument: React.FC<PitDocumentProps> = ({ records, sessionName, inspector }) => {
+const PitDocument: React.FC<PitDocumentProps> = ({ records, sessionName, inspector, entries = {} }) => {
   const pageGroups = buildPageGroups(records);
 
   if (pageGroups.length === 0) {
@@ -204,22 +214,33 @@ const PitDocument: React.FC<PitDocumentProps> = ({ records, sessionName, inspect
 
   return (
     <Document>
-      {pageGroups.map((pg, pgIdx) => (
-        <Page key={pgIdx} size="A4" orientation="portrait" style={styles.page}>
-          {/* ヘッダー */}
-          <View style={styles.header} fixed>
-            <View>
-              <Text style={styles.headerTitle}>
-                ピット作業記録　Car No. {pg.carNo}
+      {pageGroups.map((pg, pgIdx) => {
+        const entry = entries[pg.carNo];
+        const driverStr = entry?.drivers
+          ? entry.drivers.map((name, i) => `${String.fromCharCode(65 + i)}: ${name}`).join('   ')
+          : '';
+
+        return (
+          <Page key={pgIdx} size="A4" orientation="portrait" style={styles.page}>
+            {/* ヘッダー */}
+            <View style={styles.header} fixed>
+              <View style={styles.headerLeft}>
+                <View style={styles.headerTitleRow}>
+                  <Text style={styles.headerTitle}>
+                    ピット作業記録　Car No. {pg.carNo}
+                  </Text>
+                  {driverStr ? (
+                    <Text style={styles.headerDrivers}>{driverStr}</Text>
+                  ) : null}
+                </View>
+                {sessionName ? (
+                  <Text style={styles.headerSub}>セッション: {sessionName}</Text>
+                ) : null}
+              </View>
+              <Text style={styles.headerPageInfo}>
+                Car No. {pg.carNo}　{pg.pageIndex}/{pg.totalPages}
               </Text>
-              {sessionName ? (
-                <Text style={styles.headerSub}>セッション: {sessionName}</Text>
-              ) : null}
             </View>
-            <Text style={styles.headerPageInfo}>
-              Car No. {pg.carNo}　{pg.pageIndex}/{pg.totalPages}
-            </Text>
-          </View>
 
           {/* テーブル */}
           <View style={styles.table}>
@@ -313,7 +334,8 @@ const PitDocument: React.FC<PitDocumentProps> = ({ records, sessionName, inspect
             />
           </View>
         </Page>
-      ))}
+      );
+      })}
     </Document>
   );
 };

@@ -64,6 +64,7 @@ const PdfPage: React.FC = () => {
   const records = usePitStore((s) => s.records);
   const sessionName = usePitStore((s) => s.sessionName);
   const inspector = usePitStore((s) => s.inspector);
+  const entries = usePitStore((s) => s.entries);
   const setSessionName = usePitStore((s) => s.setSessionName);
   const setInspector = usePitStore((s) => s.setInspector);
 
@@ -133,6 +134,7 @@ const PdfPage: React.FC = () => {
                 records={records}
                 sessionName={sessionName}
                 inspector={inspector}
+                entries={entries}
               />
             }
             fileName={pdfFileName}

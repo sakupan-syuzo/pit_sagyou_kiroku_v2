@@ -50,7 +50,11 @@ const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
   const updateRecord = usePitStore((s) => s.updateRecord);
   const deleteRecord = usePitStore((s) => s.deleteRecord);
 
+  const entries = usePitStore((s) => s.entries);
   const [form, setForm] = React.useState<PitRecord | null>(null);
+
+  const entry = form?.carNo ? entries[form.carNo] : undefined;
+  const driverLabels = entry?.drivers;
 
   React.useEffect(() => {
     if (record) {
@@ -156,6 +160,7 @@ const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
               value={form.pitInDriver}
               onChange={(v) => patch({ pitInDriver: v })}
               placeholder="ドライバー名を入力"
+              driverLabels={driverLabels}
             />
           </div>
 
@@ -174,6 +179,7 @@ const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
                   onChange={(v) => patch({ pitOutDriver: v })}
                   placeholder="交代後ドライバー名"
                   excludeLabels={[form.pitInDriver]}
+                  driverLabels={driverLabels}
                 />
               </div>
             )}
