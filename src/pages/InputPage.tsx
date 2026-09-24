@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Trash2 } from 'lucide-react';
 import StandbyForm from '../components/LaneCard/StandbyForm';
 import WorkingForm from '../components/LaneCard/WorkingForm';
-import HistoryList from '../components/HistoryList';
+
 import EditModal from '../components/EditModal';
 import { usePitStore, initialLaneState } from '../store/usePitStore';
 import type { LaneDraft, PitRecord } from '../types';
@@ -37,8 +37,33 @@ const getNowTime = (): string => {
 
 const InputPage: React.FC = () => {
   const [editingRecord, setEditingRecord] = React.useState<PitRecord | null>(null);
-  const [showHistory, setShowHistory] = React.useState(false);
+  const [isWakeLockActive, setIsWakeLockActive] = React.useState(false);
+  const wakeLockRef = React.useRef<any>(null);
 
+  const toggleWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+      } catch (e) {}
+      wakeLockRef.current = null;
+      setIsWakeLockActive(false);
+    } else {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          wakeLockRef.current.addEventListener('release', () => {
+            wakeLockRef.current = null;
+            setIsWakeLockActive(false);
+          });
+          setIsWakeLockActive(true);
+        } catch (err) {
+          alert('画面維持を開始できませんでした。');
+        }
+      } else {
+        alert('このブラウザは画面維持機能に対応していません。');
+      }
+    }
+  };
   const clearAllData = usePitStore((s) => s.clearAllData);
   const laneCount = usePitStore((s) => s.laneCount);
   const laneStates = usePitStore((s) => s.laneStates);
@@ -202,14 +227,15 @@ const InputPage: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setShowHistory((v) => !v)}
+          onClick={toggleWakeLock}
           className={`text-xs font-bold border rounded px-2 py-1 transition-colors shrink-0 ${
-            showHistory
-              ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'text-indigo-600 border-indigo-300 bg-white hover:bg-indigo-50'
+            isWakeLockActive
+              ? 'bg-amber-500 text-white border-amber-500 shadow-inner'
+              : 'text-amber-600 border-amber-300 bg-white hover:bg-amber-50'
           }`}
+          title="画面の自動消灯を防止します"
         >
-          📋 履歴
+          {isWakeLockActive ? '☀️ 維持ON' : '🌙 維持OFF'}
         </button>
 
         <div className="flex-1" />
@@ -227,7 +253,7 @@ const InputPage: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* ---- 待機中レーン（上・flex-1 で残り全部） ---- */}
-        {standbyLanes.length > 0 && !showHistory && (
+        {standbyLanes.length > 0 && (
           <div className="flex-1 overflow-y-auto bg-white px-2 py-2 space-y-1.5">
             {standbyLanes.map((laneIndex) => {
               const ls = laneStates[laneIndex];
@@ -269,15 +295,16 @@ const InputPage: React.FC = () => {
         )}
 
         {/* standby が 0 かつ working もある場合は working が flex-1 を取る */}
-        {standbyLanes.length === 0 && workingLanes.length === 0 && !showHistory && (
+        {standbyLanes.length === 0 && workingLanes.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
             レーンを選択して開始してください
           </div>
         )}
 
         {/* ---- 作業中レーン（下・working があるときのみ表示） ---- */}
-        {workingLanes.length > 0 && !showHistory && (
+        {workingLanes.length > 0 && (
           <div className={`${standbyLanes.length > 0 ? 'flex-none max-h-[60vh]' : 'flex-1'} overflow-y-auto border-t-2 border-gray-300 bg-gray-100 p-2`}>
+
             <div className="grid grid-cols-2 gap-2">
               {workingLanes.map((laneIndex) => {
                 const ls = laneStates[laneIndex];
@@ -303,12 +330,6 @@ const InputPage: React.FC = () => {
           </div>
         )}
 
-        {/* ---- 履歴パネル ---- */}
-        {showHistory && (
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
-            <HistoryList onEditRecord={setEditingRecord} />
-          </div>
-        )}
       </div>
 
       <EditModal record={editingRecord} onClose={() => setEditingRecord(null)} />
