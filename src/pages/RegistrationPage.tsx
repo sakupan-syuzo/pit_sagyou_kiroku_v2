@@ -10,7 +10,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type DriverRole = 'driver_a' | 'driver_b' | 'driver_c' | 'driver_d' | 'driver_e' | 'driver_f';
-type ColumnRole = 'ignore' | 'carno' | DriverRole;
+type ColumnRole = 'ignore' | 'carno' | 'pitno' | DriverRole;
 type GridRow = { y: number; cells: string[] };
 
 const RegistrationPage: React.FC = () => {
@@ -136,11 +136,16 @@ const RegistrationPage: React.FC = () => {
 
         if (
           combinedText.includes('ゼッケン') ||
-          combinedText.includes('car no') ||
+          (combinedText.includes('no.') && !combinedText.includes('pit') && !combinedText.includes('ピット')) ||
           combinedText.includes('carno') ||
-          combinedText.includes('no.')
+          combinedText.includes('車番')
         ) {
           roles[c] = 'carno';
+        } else if (
+          combinedText.includes('ピット') ||
+          combinedText.includes('pit')
+        ) {
+          roles[c] = 'pitno';
         } else if (
           combinedText.includes('ドライバー') ||
           combinedText.includes('driver') ||
@@ -168,8 +173,10 @@ const RegistrationPage: React.FC = () => {
   };
 
   const handleSave = () => {
-    const newEntries: Record<string, Entry> = {};
+    const entries = usePitStore.getState().entries;
+    const newEntries: Record<string, Entry> = { ...entries }; // 既存データとマージ
     const carNoIndex = columnRoles.indexOf('carno');
+    const pitNoIndex = columnRoles.indexOf('pitno');
 
     if (carNoIndex === -1) {
       alert('「Car No」の列が1つも選択されていません。');
@@ -177,8 +184,8 @@ const RegistrationPage: React.FC = () => {
     }
 
     const hasDriver = columnRoles.some((r) => r.startsWith('driver_'));
-    if (!hasDriver) {
-      alert('「ドライバー」の列が1つも選択されていません。');
+    if (!hasDriver && pitNoIndex === -1) {
+      alert('「ドライバー」か「PIT No」のどちらかの列を選択してください。');
       return;
     }
 
@@ -186,6 +193,7 @@ const RegistrationPage: React.FC = () => {
     const anchors: {
       y: number;
       carNo: string;
+      pitNo: string;
       drivers: { a: string[]; b: string[]; c: string[]; d: string[]; e: string[]; f: string[] };
     }[] = [];
 
@@ -193,8 +201,9 @@ const RegistrationPage: React.FC = () => {
       const carNoRaw = row.cells[carNoIndex]?.trim();
       if (carNoRaw && /\d/.test(carNoRaw)) {
         const cleanCarNo = normalizeCarNo(carNoRaw);
+        const pitNoRaw = pitNoIndex !== -1 ? row.cells[pitNoIndex]?.trim() : '';
         if (cleanCarNo) {
-          anchors.push({ y: row.y, carNo: cleanCarNo, drivers: { a: [], b: [], c: [], d: [], e: [], f: [] } });
+          anchors.push({ y: row.y, carNo: cleanCarNo, pitNo: pitNoRaw, drivers: { a: [], b: [], c: [], d: [], e: [], f: [] } });
         }
       }
     }
@@ -280,16 +289,22 @@ const RegistrationPage: React.FC = () => {
       }
 
       if (finalDrivers.length > 0) {
-        newEntries[anchor.carNo] = {
-          id: anchor.carNo,
-          carNo: anchor.carNo,
-          drivers: finalDrivers,
-        };
+        if (!newEntries[anchor.carNo]) {
+          newEntries[anchor.carNo] = { id: anchor.carNo, carNo: anchor.carNo, drivers: [] };
+        }
+        newEntries[anchor.carNo].drivers = finalDrivers;
+      }
+      
+      if (anchor.pitNo) {
+        if (!newEntries[anchor.carNo]) {
+          newEntries[anchor.carNo] = { id: anchor.carNo, carNo: anchor.carNo, drivers: [] };
+        }
+        newEntries[anchor.carNo].pitNo = anchor.pitNo;
       }
     }
 
     setEntries(newEntries);
-    alert(`${Object.keys(newEntries).length} 件のエントリーを保存しました。`);
+    alert(`${anchors.length} 件の情報を更新しました。\n（※すでに登録されていた他のエントリーと結合されました）`);
   };
 
   return (
@@ -335,6 +350,8 @@ const RegistrationPage: React.FC = () => {
                           className={`w-full text-xs font-bold p-1 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                             role === 'carno'
                               ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : role === 'pitno'
+                              ? 'bg-green-100 text-green-800 border-green-300'
                               : role.startsWith('driver_')
                               ? 'bg-blue-100 text-blue-800 border-blue-300'
                               : 'bg-white text-gray-500 border-gray-300'
@@ -342,6 +359,7 @@ const RegistrationPage: React.FC = () => {
                         >
                           <option value="ignore">❌ 無視</option>
                           <option value="carno">🏎️ Car No</option>
+                          <option value="pitno">🏁 PIT No</option>
                           <option value="driver_a">👤 ドラ A</option>
                           <option value="driver_b">👤 ドラ B</option>
                           <option value="driver_c">👤 ドラ C</option>
@@ -405,14 +423,28 @@ const RegistrationPage: React.FC = () => {
           </div>
         </label>
 
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={grid.length === 0}
-          className="w-full sm:w-auto px-6 py-3 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow shrink-0"
-        >
-          保存して適用
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('現在登録されているエントリーリストとピット割り当てをすべて削除します。よろしいですか？')) {
+                setEntries({});
+                alert('全データをクリアしました。');
+              }
+            }}
+            className="px-4 py-3 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors shadow shrink-0"
+          >
+            データクリア
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={grid.length === 0}
+            className="px-6 py-3 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow shrink-0"
+          >
+            保存して適用
+          </button>
+        </div>
       </div>
     </div>
   );

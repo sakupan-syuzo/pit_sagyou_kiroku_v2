@@ -40,4 +40,5 @@ export type Entry = {
   carNo: string;
   drivers: string[];
   team?: string;
+  pitNo?: string;
 };

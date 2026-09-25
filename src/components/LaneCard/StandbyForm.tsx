@@ -22,6 +22,35 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
   const entry = normalizedCarNo ? entries[normalizedCarNo] : undefined;
   const driverLabels = entry?.drivers;
 
+  const handlePitNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const updates: Partial<LaneDraft> = { pitNo: val };
+    
+    // Auto-fill Car No.
+    if (val) {
+      const matchedEntry = Object.values(entries).find(entry => entry.pitNo === val);
+      if (matchedEntry) {
+        updates.carNo = matchedEntry.carNo;
+      }
+    }
+    onDraftChange(updates);
+  };
+
+  const handleCarNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const updates: Partial<LaneDraft> = { carNo: val };
+    
+    // Auto-fill PIT No.
+    if (val) {
+      const cleanCarNo = normalizeCarNo(val);
+      const matchedEntry = cleanCarNo ? entries[cleanCarNo] : undefined;
+      if (matchedEntry?.pitNo) {
+        updates.pitNo = matchedEntry.pitNo;
+      }
+    }
+    onDraftChange(updates);
+  };
+
   return (
     <div
       className={`flex items-center gap-2 ${
@@ -43,7 +72,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           type="text"
           inputMode="numeric"
           value={draft.pitNo || ''}
-          onChange={(e) => onDraftChange({ pitNo: e.target.value })}
+          onChange={handlePitNoChange}
           placeholder="PIT#"
           className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-xs placeholder:font-normal"
         />
@@ -52,7 +81,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           type="text"
           inputMode="numeric"
           value={draft.carNo || ''}
-          onChange={(e) => onDraftChange({ carNo: e.target.value })}
+          onChange={handleCarNoChange}
           placeholder="Car#"
           className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-xs placeholder:font-normal"
         />
