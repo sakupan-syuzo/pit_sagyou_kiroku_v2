@@ -11,50 +11,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 type ColumnRole = 'ignore' | 'carno' | 'driver';
 
+// Y座標を保持する行データ
+type GridRow = { y: number; cells: string[] };
+
 interface MasterDataModalProps {
   onClose: () => void;
 }
 
-/**
- * 同じ行内のアイテム群を X 座標のギャップで列に分割する。
- *
- * - ギャップ閾値 (gapThreshold) 未満の隣接アイテムは同じ列として結合
- * - ギャップ閾値以上離れていれば別列（タブ区切り相当）とみなす
- *
- * 返り値: { text: string; x: number }[] — 列ごとに結合済みのアイテム列
- */
-function clusterRowByXGap(
-  items: { text: string; x: number; width: number }[],
-  gapThreshold: number
-): { text: string; x: number }[] {
-  if (items.length === 0) return [];
-
-  // X 昇順ソート済み前提
-  const clusters: { text: string; x: number }[] = [];
-  let curText = items[0].text;
-  let curX = items[0].x;
-  let curRight = items[0].x + items[0].width;
-
-  for (let i = 1; i < items.length; i++) {
-    const gap = items[i].x - curRight;
-    if (gap < gapThreshold) {
-      // 近接 → 同じ列として結合（スペースで繋ぐ）
-      curText += ' ' + items[i].text;
-      curRight = items[i].x + items[i].width;
-    } else {
-      // 離れている → 列確定
-      clusters.push({ text: curText.trim(), x: curX });
-      curText = items[i].text;
-      curX = items[i].x;
-      curRight = items[i].x + items[i].width;
-    }
-  }
-  clusters.push({ text: curText.trim(), x: curX });
-  return clusters;
-}
-
 const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
-  const [grid, setGrid] = useState<string[][]>([]);
+  const [grid, setGrid] = useState<GridRow[]>([]);
   const [columnRoles, setColumnRoles] = useState<ColumnRole[]>([]);
   const [isParsing, setIsParsing] = useState(false);
   const setEntries = usePitStore((s) => s.setEntries);
@@ -68,8 +33,7 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-      // width 付きで取得
-      let allItems: { text: string; x: number; y: number; width: number }[] = [];
+      let allItems: { text: string; x: number; y: number }[] = [];
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
@@ -81,9 +45,8 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
           allItems.push({
             text,
             x: item.transform[4],
-            // ページごとにY座標をオフセットして混ざらないようにする（PDFは下がY=0）
+            // ページごとにY座標をオフセットして混ざらないようにする
             y: item.transform[5] - pageNum * 10000,
-            width: item.width ?? 0,
           });
         });
       }
@@ -93,17 +56,18 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
         return;
       }
 
-      // 1. Y座標でグループ化して行を生成
+      // 1. Y座標でグループ化して行を生成（行ごとの平均Y座標も計算）
       allItems.sort((a, b) => b.y - a.y);
-      const rowsRaw: { text: string; x: number; y: number; width: number }[][] = [];
-      let currentRow: { text: string; x: number; y: number; width: number }[] = [];
+      const rowsRaw: { items: { text: string; x: number; y: number }[], y: number }[] = [];
+      let currentRow: { text: string; x: number; y: number }[] = [];
       let lastY = allItems[0].y;
 
       for (const item of allItems) {
-        if (Math.abs(item.y - lastY) > 5) { // 5px以上のズレで改行判定
+        if (Math.abs(item.y - lastY) > 5) {
           if (currentRow.length > 0) {
             currentRow.sort((a, b) => a.x - b.x);
-            rowsRaw.push(currentRow);
+            const avgY = currentRow.reduce((sum, i) => sum + i.y, 0) / currentRow.length;
+            rowsRaw.push({ items: currentRow, y: avgY });
           }
           currentRow = [item];
         } else {
@@ -113,66 +77,61 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
       }
       if (currentRow.length > 0) {
         currentRow.sort((a, b) => a.x - b.x);
-        rowsRaw.push(currentRow);
+        const avgY = currentRow.reduce((sum, i) => sum + i.y, 0) / currentRow.length;
+        rowsRaw.push({ items: currentRow, y: avgY });
       }
 
-      // 2. 各行を X ギャップでクラスタリングして列に分割
-      //    gapThreshold: フォントサイズの約 0.8 文字分を目安に 12pt 相当で設定
-      const GAP_THRESHOLD = 12;
-      const clusteredRows: { text: string; x: number }[][] = rowsRaw.map((row) =>
-        clusterRowByXGap(row, GAP_THRESHOLD)
-      );
-
-      // 3. 全列の X 座標をクラスタリングして「マスター列位置」を特定
-      const allColX = clusteredRows.flatMap((row) => row.map((c) => c.x)).sort((a, b) => a - b);
+      // 2. 全X座標をクラスタリングして「マスター列位置」を特定
+      const allX = allItems.map((i) => i.x).sort((a, b) => a - b);
       const masterCols: number[] = [];
-      if (allColX.length > 0) {
-        let sum = allColX[0];
-        let cnt = 1;
-        let prev = allColX[0];
-        for (let i = 1; i < allColX.length; i++) {
-          if (allColX[i] - prev > 15) {
-            masterCols.push(sum / cnt);
-            sum = allColX[i];
-            cnt = 1;
+      if (allX.length > 0) {
+        let currentClusterSum = allX[0];
+        let currentClusterCount = 1;
+        let prevX = allX[0];
+
+        for (let i = 1; i < allX.length; i++) {
+          if (allX[i] - prevX > 15) {
+            masterCols.push(currentClusterSum / currentClusterCount);
+            currentClusterSum = allX[i];
+            currentClusterCount = 1;
           } else {
-            sum += allColX[i];
-            cnt++;
+            currentClusterSum += allX[i];
+            currentClusterCount++;
           }
-          prev = allColX[i];
+          prevX = allX[i];
         }
-        masterCols.push(sum / cnt);
+        masterCols.push(currentClusterSum / currentClusterCount);
       }
 
-      // 4. 各行のクラスターをマスター列に当てはめる
-      const parsedGrid: string[][] = [];
-      for (const row of clusteredRows) {
+      // 3. 各行のアイテムをマスター列に直接当てはめる
+      const parsedGrid: GridRow[] = [];
+      for (const row of rowsRaw) {
         const rowData: string[] = Array(masterCols.length).fill('');
-        for (const cluster of row) {
+        for (const item of row.items) {
           let bestCol = 0;
           let minDiff = Infinity;
           for (let i = 0; i < masterCols.length; i++) {
-            const diff = Math.abs(cluster.x - masterCols[i]);
+            const diff = Math.abs(item.x - masterCols[i]);
             if (diff < minDiff) {
               minDiff = diff;
               bestCol = i;
             }
           }
           rowData[bestCol] = rowData[bestCol]
-            ? rowData[bestCol] + ' ' + cluster.text
-            : cluster.text;
+            ? rowData[bestCol] + ' ' + item.text
+            : item.text;
         }
-        parsedGrid.push(rowData);
+        parsedGrid.push({ y: row.y, cells: rowData });
       }
 
       setGrid(parsedGrid);
 
-      // 5. 上位行のヘッダー文字から役割を自動推測
+      // 4. 上位行のヘッダー文字から役割を自動推測
       const roles: ColumnRole[] = Array(masterCols.length).fill('ignore');
       for (let c = 0; c < masterCols.length; c++) {
         let combinedText = '';
         for (let r = 0; r < Math.min(5, parsedGrid.length); r++) {
-          combinedText += parsedGrid[r][c] + ' ';
+          combinedText += parsedGrid[r].cells[c] + ' ';
         }
         combinedText = combinedText.toLowerCase();
 
@@ -226,24 +185,56 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
       return;
     }
 
+    // 1. Car No (アンカー) をすべて抽出
+    const anchors: { y: number; carNo: string; drivers: string[] }[] = [];
     for (const row of grid) {
-      const carNoRaw = row[carNoIndex]?.trim();
-      // 数字を含む文字列かチェック
-      if (!carNoRaw || !/\d/.test(carNoRaw)) continue;
+      const carNoRaw = row.cells[carNoIndex]?.trim();
+      if (carNoRaw && /\d/.test(carNoRaw)) {
+        const cleanCarNo = normalizeCarNo(carNoRaw);
+        if (cleanCarNo) {
+          anchors.push({ y: row.y, carNo: cleanCarNo, drivers: [] });
+        }
+      }
+    }
 
+    if (anchors.length === 0) {
+      alert('有効なCar Noが見つかりませんでした。');
+      return;
+    }
+
+    // 2. 各行のドライバーを、Y座標が最も近いCar Noに割り当てる
+    for (const row of grid) {
       const drivers = driverIndices
-        .map((idx) => row[idx]?.trim())
+        .map((idx) => row.cells[idx]?.trim())
         .filter(Boolean);
 
       if (drivers.length > 0) {
-        // normalizeCarNo で #/No./ゼッケン除去＋先頭ゼロ除去＋全角正規化
-        const cleanCarNo = normalizeCarNo(carNoRaw);
-        if (!cleanCarNo) continue;
+        let closestAnchor = anchors[0];
+        let minDiff = Math.abs(row.y - anchors[0].y);
 
-        newEntries[cleanCarNo] = {
-          id: cleanCarNo,
-          carNo: cleanCarNo,
-          drivers,
+        for (let i = 1; i < anchors.length; i++) {
+          const diff = Math.abs(row.y - anchors[i].y);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestAnchor = anchors[i];
+          }
+        }
+
+        // 姓名で列が分かれている場合（例: ["岩佐", "歩夢"]）はスペースで結合して1人として扱う
+        const combinedDriver = drivers.join(' ');
+        if (!closestAnchor.drivers.includes(combinedDriver)) {
+          closestAnchor.drivers.push(combinedDriver);
+        }
+      }
+    }
+
+    // 3. エントリーの生成
+    for (const anchor of anchors) {
+      if (anchor.drivers.length > 0) {
+        newEntries[anchor.carNo] = {
+          id: anchor.carNo,
+          carNo: anchor.carNo,
+          drivers: anchor.drivers,
         };
       }
     }
@@ -316,7 +307,7 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
                   <tbody>
                     {grid.map((row, rowIndex) => (
                       <tr key={rowIndex} className="border-b border-gray-200 bg-white hover:bg-gray-50">
-                        {row.map((cell, colIndex) => {
+                        {row.cells.map((cell, colIndex) => {
                           const role = columnRoles[colIndex];
                           return (
                             <td
