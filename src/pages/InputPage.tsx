@@ -7,7 +7,6 @@ import WorkingForm from '../components/LaneCard/WorkingForm';
 import { usePitStore, initialLaneState } from '../store/usePitStore';
 import { useWakeLock } from '../hooks/useWakeLock';
 import type { LaneDraft, PitRecord } from '../types';
-import MasterDataModal from '../components/MasterDataModal';
 
 const LANE_LABELS = [
   'LANE 1', 'LANE 2', 'LANE 3', 'LANE 4', 'LANE 5',
@@ -40,8 +39,6 @@ const getNowTime = (): string => {
 const PIT_OUT_LOCK_MS = 700;
 
 const InputPage: React.FC = () => {
-  const [showMasterModal, setShowMasterModal] = React.useState(false);
-
   /**
    * PIT OUT直後に true になる操作ロックフラグ。
    * true の間、作業エリア全体に透明オーバーレイを被せてタップを無効化する。
@@ -242,15 +239,6 @@ const InputPage: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setShowMasterModal(true)}
-          className="text-xs font-bold text-blue-600 border border-blue-300 rounded px-2 py-1 bg-white hover:bg-blue-50 active:bg-blue-100 transition-colors shrink-0"
-          title="マスターデータを設定します"
-        >
-          ⚙️ 登録
-        </button>
-
-        <button
-          type="button"
           onClick={toggleWakeLock}
           className={`text-xs font-bold border rounded px-2 py-1 transition-colors shrink-0 ${
             isWakeLockActive
@@ -373,8 +361,6 @@ const InputPage: React.FC = () => {
         )}
 
       </div>
-
-      {showMasterModal && <MasterDataModal onClose={() => setShowMasterModal(false)} />}
     </div>
   );
 };

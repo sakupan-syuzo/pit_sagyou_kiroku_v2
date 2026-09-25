@@ -5,14 +5,15 @@ import { usePitStore } from '../store/usePitStore';
 import HistoryList from '../components/HistoryList';
 import EditModal from '../components/EditModal';
 import PitDocument from '../pdf/PitDocument';
-import { calcDuration } from '../pdf/pdfUtils';
-import type { PitRecord } from '../types';
+import { calcDuration, getDriverLabel } from '../pdf/pdfUtils';
+import type { PitRecord, Entry } from '../types';
 
 type OutputFormat = 'pdf' | 'csv';
 
 /** レコード1件をCSV行に変換 */
-const recordToCsvRow = (r: PitRecord, index: number): string => {
+const recordToCsvRow = (r: PitRecord, index: number, entries: Record<string, Entry>): string => {
   const outDriver = r.isDriverChanged ? r.pitOutDriver : r.pitInDriver;
+  const entry = entries[r.carNo];
   const duration = calcDuration(r.pitInAt, r.pitOutAt);
   const cells = [
     index + 1,
@@ -21,8 +22,8 @@ const recordToCsvRow = (r: PitRecord, index: number): string => {
     r.pitInTime,
     r.pitOutTime,
     duration,
-    r.pitInDriver,
-    outDriver,
+    getDriverLabel(r.pitInDriver, entry),
+    getDriverLabel(outDriver, entry),
     r.isDriverChanged ? 'あり' : 'なし',
     r.refuel ? 'あり' : 'なし',
     r.tires,
@@ -32,7 +33,7 @@ const recordToCsvRow = (r: PitRecord, index: number): string => {
   return cells.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',');
 };
 
-const downloadCsv = (records: PitRecord[], sessionName: string) => {
+const downloadCsv = (records: PitRecord[], sessionName: string, entries: Record<string, Entry>) => {
   const header = [
     '"#"', '"PIT No."', '"Car No."',
     '"PIT IN時刻"', '"PIT OUT時刻"', '"滞在時間"',
@@ -42,7 +43,7 @@ const downloadCsv = (records: PitRecord[], sessionName: string) => {
 
   const rows = [...records]
     .sort((a, b) => a.createdAt - b.createdAt)
-    .map((r, i) => recordToCsvRow(r, i));
+    .map((r, i) => recordToCsvRow(r, i, entries));
 
   const csv = '\uFEFF' + [header, ...rows].join('\r\n'); // BOM付きUTF-8
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -157,7 +158,7 @@ const PdfPage: React.FC = () => {
           </PDFDownloadLink>
         ) : (
           <button
-            onClick={() => downloadCsv(records, sessionName)}
+            onClick={() => downloadCsv(records, sessionName, entries)}
             className="w-full flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white"
           >
             <Download size={20} />

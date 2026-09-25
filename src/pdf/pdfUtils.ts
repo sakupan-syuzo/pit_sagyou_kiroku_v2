@@ -1,4 +1,4 @@
-import type { PitRecord } from '../types';
+import type { PitRecord, Entry } from '../types';
 
 /**
  * Car No. でグループ化し、createdAt でソートして返す
@@ -70,4 +70,18 @@ export const calcDuration = (inTimeAt: number | undefined, outTimeAt: number | n
     return `${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+/**
+ * ドライバー名がエントリーリストにある場合、A, B, C... のアルファベットに変換する
+ */
+export const getDriverLabel = (driverName: string, entry?: Entry): string => {
+  if (!driverName) return '';
+  if (!entry || !entry.drivers) return driverName;
+
+  const idx = entry.drivers.indexOf(driverName);
+  if (idx !== -1) {
+    return String.fromCharCode(65 + idx); // 0 -> A, 1 -> B, etc.
+  }
+  return driverName;
 };

@@ -8,7 +8,7 @@ import {
   Font,
 } from '@react-pdf/renderer';
 import type { PitRecord, Entry } from '../types';
-import { buildPageGroups, formatBool, calcDuration } from './pdfUtils';
+import { buildPageGroups, formatBool, calcDuration, getDriverLabel } from './pdfUtils';
 
 // フォントURL解決
 const getFontUrl = (filename: string): string => {
@@ -289,12 +289,12 @@ const PitDocument: React.FC<PitDocumentProps> = ({ records, sessionName, inspect
                   </View>
                   {/* PIT INドライバー */}
                   <View style={[styles.cell, styles.colPitInDriver]}>
-                    <Text style={styles.cellText}>{record.pitInDriver}</Text>
+                    <Text style={styles.cellText}>{getDriverLabel(record.pitInDriver, entry)}</Text>
                   </View>
                   {/* PIT OUTドライバー */}
                   <View style={[styles.cell, styles.colPitOutDriver]}>
                     <Text style={styles.cellText}>
-                      {record.isDriverChanged ? record.pitOutDriver : record.pitInDriver}
+                      {getDriverLabel(record.isDriverChanged ? record.pitOutDriver : record.pitInDriver, entry)}
                     </Text>
                   </View>
                   {/* ドライバー交代 */}

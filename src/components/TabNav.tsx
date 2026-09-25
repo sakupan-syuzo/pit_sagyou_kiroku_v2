@@ -1,9 +1,9 @@
 import React from 'react';
-import { ClipboardList, FileText } from 'lucide-react';
+import { ClipboardList, FileText, Database } from 'lucide-react';
 
 interface TabNavProps {
-  activeTab: 'input' | 'pdf';
-  onTabChange: (tab: 'input' | 'pdf') => void;
+  activeTab: 'input' | 'pdf' | 'registration';
+  onTabChange: (tab: 'input' | 'pdf' | 'registration') => void;
 }
 
 const TabNav: React.FC<TabNavProps> = ({ activeTab, onTabChange }) => {
@@ -29,7 +29,18 @@ const TabNav: React.FC<TabNavProps> = ({ activeTab, onTabChange }) => {
         }`}
       >
         <FileText size={20} />
-        <span>OUTPUT</span>
+        <span>履歴・出力</span>
+      </button>
+      <button
+        onClick={() => onTabChange('registration')}
+        className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-bold transition-colors ${
+          activeTab === 'registration'
+            ? 'text-blue-600 border-t-2 border-blue-600'
+            : 'text-gray-500 border-t-2 border-transparent'
+        }`}
+      >
+        <Database size={20} />
+        <span>登録</span>
       </button>
     </nav>
   );

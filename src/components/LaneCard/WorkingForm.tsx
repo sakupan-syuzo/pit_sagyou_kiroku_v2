@@ -208,7 +208,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
               {labels.map((label, i) => {
                 const defaultLabel = DEFAULT_DRIVER_LABELS[i] || String.fromCharCode(65 + i);
                 const isCustom = label !== defaultLabel;
-                const displaySub = isCustom ? label.slice(0, 5) : null;
+                const displaySub = isCustom ? label : null;
                 const isExcluded = label === draft.pitInDriver;
                 const isSelected = draft.pitOutDriver === label;
                 return (
@@ -227,7 +227,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                     title={isExcluded ? `${label}: 乗車中` : label}
                   >
                     <span className="font-black text-sm">{defaultLabel}</span>
-                    {displaySub && <span className="text-[10px] font-bold">{displaySub}</span>}
+                    {displaySub && <span className="text-[10px] font-bold w-full truncate px-1 text-center">{displaySub}</span>}
                   </button>
                 );
               })}

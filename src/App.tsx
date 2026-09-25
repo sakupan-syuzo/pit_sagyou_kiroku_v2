@@ -2,8 +2,9 @@ import React from 'react';
 import TabNav from './components/TabNav';
 import InputPage from './pages/InputPage';
 import PdfPage from './pages/PdfPage';
+import RegistrationPage from './pages/RegistrationPage';
 
-type Tab = 'input' | 'pdf';
+type Tab = 'input' | 'pdf' | 'registration';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<Tab>('input');
@@ -14,6 +15,7 @@ const App: React.FC = () => {
       <main className="h-dvh pb-14">
         {activeTab === 'input' && <InputPage />}
         {activeTab === 'pdf' && <PdfPage />}
+        {activeTab === 'registration' && <RegistrationPage />}
       </main>
 
       {/* タブナビゲーション */}

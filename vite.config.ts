@@ -30,8 +30,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/],
       },
       manifest: {
-        name: 'ピット作業記録',
-        short_name: 'PitRecord',
+        name: 'ピット作業記録 V2',
+        short_name: 'PitRec V2',
         description: 'モータースポーツのピット作業を記録するアプリ',
         theme_color: '#1e3a5f',
         background_color: '#f3f4f6',

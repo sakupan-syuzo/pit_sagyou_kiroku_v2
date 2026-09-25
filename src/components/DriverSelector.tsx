@@ -31,7 +31,7 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
     const defaultLabel = DEFAULT_DRIVER_LABELS[i] || String.fromCharCode(65 + i);
     const customLabel = hasCustomLabels ? driverLabels[i] : null;
     const valueToUse = customLabel || defaultLabel;
-    const displaySub = customLabel ? customLabel.slice(0, 5) : null;
+    const displaySub = customLabel || null;
     return { defaultLabel, displaySub, valueToUse };
   });
 
@@ -123,7 +123,7 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
                 {defaultLabel}
               </span>
               {displaySub && (
-                <span className="text-[9px] font-bold mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap px-0.5">
+                <span className="text-[9px] font-bold mt-0.5 w-full truncate px-0.5 text-center">
                   {displaySub}
                 </span>
               )}
