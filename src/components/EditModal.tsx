@@ -46,6 +46,46 @@ const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   </div>
 );
 
+// ---- ユーティリティ ----
+
+/**
+ * epoch ms → datetime-local 入力値 ("YYYY-MM-DDTHH:mm:ss") に変換。
+ * epoch が 0 または null の場合は空文字を返す。
+ */
+const epochToDatetimeLocal = (epoch: number | null | undefined): string => {
+  if (!epoch) return '';
+  const d = new Date(epoch);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+};
+
+/**
+ * datetime-local 入力値 → epoch ms に変換。
+ * 空文字の場合は null を返す。
+ */
+const datetimeLocalToEpoch = (value: string): number | null => {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return isNaN(ms) ? null : ms;
+};
+
+/**
+ * epoch ms → "HH:mm:ss" 表示用文字列に変換。
+ * epoch が 0 または null の場合は空文字を返す。
+ */
+const epochToTimeString = (epoch: number | null | undefined): string => {
+  if (!epoch) return '';
+  const d = new Date(epoch);
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map((n) => String(n).padStart(2, '0'))
+    .join(':');
+};
+
+// ---- コンポーネント ----
+
 const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
   const updateRecord = usePitStore((s) => s.updateRecord);
   const deleteRecord = usePitStore((s) => s.deleteRecord);
@@ -53,12 +93,21 @@ const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
   const entries = usePitStore((s) => s.entries);
   const [form, setForm] = React.useState<PitRecord | null>(null);
 
+  /**
+   * datetime-local 入力用の中間ステート。
+   * form.pitInAt / pitOutAt が更新されるたびに連動して更新される。
+   */
+  const [pitInDatetime, setPitInDatetime] = React.useState('');
+  const [pitOutDatetime, setPitOutDatetime] = React.useState('');
+
   const entry = form?.carNo ? entries[form.carNo] : undefined;
   const driverLabels = entry?.drivers;
 
   React.useEffect(() => {
     if (record) {
       setForm({ ...record });
+      setPitInDatetime(epochToDatetimeLocal(record.pitInAt));
+      setPitOutDatetime(epochToDatetimeLocal(record.pitOutAt));
     }
   }, [record]);
 
@@ -66,6 +115,38 @@ const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
 
   const patch = (fields: Partial<PitRecord>) => {
     setForm((prev) => prev ? { ...prev, ...fields } : prev);
+  };
+
+  /**
+   * PIT IN 日時変更ハンドラ。
+   * pitInAt (epoch) と pitInTime (表示用文字列) を同期更新する。
+   */
+  const handlePitInDatetimeChange = (value: string) => {
+    setPitInDatetime(value);
+    const epoch = datetimeLocalToEpoch(value);
+    patch({
+      pitInAt: epoch ?? 0,
+      pitInTime: epoch ? epochToTimeString(epoch) : '',
+    });
+  };
+
+  /**
+   * PIT OUT 日時変更ハンドラ。
+   * pitOutAt (epoch) と pitOutTime (表示用文字列) を同期更新する。
+   */
+  const handlePitOutDatetimeChange = (value: string) => {
+    setPitOutDatetime(value);
+    const epoch = datetimeLocalToEpoch(value);
+    patch({
+      pitOutAt: epoch,
+      pitOutTime: epoch ? epochToTimeString(epoch) : '',
+    });
+  };
+
+  /** PIT OUT 日時を空欄（引き継ぎ扱い）にする */
+  const clearPitOut = () => {
+    setPitOutDatetime('');
+    patch({ pitOutAt: null, pitOutTime: '' });
   };
 
   const handleSave = () => {
@@ -118,37 +199,41 @@ const EditModal: React.FC<EditModalProps> = ({ record, onClose }) => {
             </div>
           </div>
 
-          {/* PIT IN時刻 */}
+          {/* PIT IN 日時（datetime-local で日跨ぎ対応） */}
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1">PIT IN時刻</label>
+            <label className="block text-xs font-bold text-gray-600 mb-1">
+              PIT IN 日時
+              <span className="text-gray-400 font-normal ml-1">（24hレース等の日跨ぎに対応）</span>
+            </label>
             <input
-              type="time"
+              type="datetime-local"
               step="1"
-              value={form.pitInTime}
-              onChange={(e) => patch({ pitInTime: e.target.value })}
+              value={pitInDatetime}
+              onChange={(e) => handlePitInDatetimeChange(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
           </div>
 
-          {/* PIT OUT時刻 */}
+          {/* PIT OUT 日時（datetime-local で日跨ぎ対応） */}
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1">
-              PIT OUT時刻 <span className="text-gray-400 font-normal">（引き継ぎ時は空欄）</span>
+              PIT OUT 日時
+              <span className="text-gray-400 font-normal ml-1">（引き継ぎ時は空欄）</span>
             </label>
             <input
-              type="time"
+              type="datetime-local"
               step="1"
-              value={form.pitOutTime}
-              onChange={(e) => patch({ pitOutTime: e.target.value })}
+              value={pitOutDatetime}
+              onChange={(e) => handlePitOutDatetimeChange(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
-            {form.pitOutTime && (
+            {pitOutDatetime && (
               <button
                 type="button"
-                onClick={() => patch({ pitOutTime: '' })}
+                onClick={clearPitOut}
                 className="text-xs text-gray-400 mt-1 underline"
               >
-                OUT時刻を空欄にする（引き継ぎ扱い）
+                OUT日時を空欄にする（引き継ぎ扱い）
               </button>
             )}
           </div>

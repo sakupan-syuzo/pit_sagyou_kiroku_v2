@@ -4,8 +4,8 @@ import { Trash2 } from 'lucide-react';
 import StandbyForm from '../components/LaneCard/StandbyForm';
 import WorkingForm from '../components/LaneCard/WorkingForm';
 
-import EditModal from '../components/EditModal';
 import { usePitStore, initialLaneState } from '../store/usePitStore';
+import { useWakeLock } from '../hooks/useWakeLock';
 import type { LaneDraft, PitRecord } from '../types';
 import MasterDataModal from '../components/MasterDataModal';
 
@@ -36,36 +36,22 @@ const getNowTime = (): string => {
     .join(':');
 };
 
-const InputPage: React.FC = () => {
-  const [editingRecord, setEditingRecord] = React.useState<PitRecord | null>(null);
-  const [isWakeLockActive, setIsWakeLockActive] = React.useState(false);
-  const [showMasterModal, setShowMasterModal] = React.useState(false);
-  const wakeLockRef = React.useRef<any>(null);
+/** PIT OUT直後の誤爆防止ロック時間（ms） */
+const PIT_OUT_LOCK_MS = 700;
 
-  const toggleWakeLock = async () => {
-    if (wakeLockRef.current) {
-      try {
-        await wakeLockRef.current.release();
-      } catch (e) {}
-      wakeLockRef.current = null;
-      setIsWakeLockActive(false);
-    } else {
-      if ('wakeLock' in navigator) {
-        try {
-          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-          wakeLockRef.current.addEventListener('release', () => {
-            wakeLockRef.current = null;
-            setIsWakeLockActive(false);
-          });
-          setIsWakeLockActive(true);
-        } catch (err) {
-          alert('画面維持を開始できませんでした。');
-        }
-      } else {
-        alert('このブラウザは画面維持機能に対応していません。');
-      }
-    }
-  };
+const InputPage: React.FC = () => {
+  const [showMasterModal, setShowMasterModal] = React.useState(false);
+
+  /**
+   * PIT OUT直後に true になる操作ロックフラグ。
+   * true の間、作業エリア全体に透明オーバーレイを被せてタップを無効化する。
+   */
+  const [pitOutLocked, setPitOutLocked] = React.useState(false);
+  const pitOutLockTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Wake Lock はカスタムフックで管理（visibilitychange 再取得含む）
+  const { enabled: isWakeLockActive, toggle: toggleWakeLock } = useWakeLock();
+
   const clearAllData = usePitStore((s) => s.clearAllData);
   const laneCount = usePitStore((s) => s.laneCount);
   const laneStates = usePitStore((s) => s.laneStates);
@@ -76,6 +62,23 @@ const InputPage: React.FC = () => {
   const addRecord = usePitStore((s) => s.addRecord);
   const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition);
   const setPitInButtonPosition = usePitStore((s) => s.setPitInButtonPosition);
+
+  /** PIT OUT後に700msのタップロックを開始する */
+  const startPitOutLock = React.useCallback(() => {
+    if (pitOutLockTimerRef.current) clearTimeout(pitOutLockTimerRef.current);
+    setPitOutLocked(true);
+    pitOutLockTimerRef.current = setTimeout(() => {
+      setPitOutLocked(false);
+      pitOutLockTimerRef.current = null;
+    }, PIT_OUT_LOCK_MS);
+  }, []);
+
+  // アンマウント時にタイマーをクリア
+  React.useEffect(() => {
+    return () => {
+      if (pitOutLockTimerRef.current) clearTimeout(pitOutLockTimerRef.current);
+    };
+  }, []);
 
   // ---- イベントハンドラファクトリ ----
   const makeHandlePitIn = (laneIndex: number) => () => {
@@ -103,13 +106,13 @@ const InputPage: React.FC = () => {
     updateDraft(laneIndex, patch);
   };
 
+  /** 取り消し: WorkingForm のインライン確認から呼ばれるため confirm() 不要 */
   const makeHandleCancel = (laneIndex: number) => () => {
-    if (!window.confirm('作業データを破棄して待機中に戻りますか？')) return;
     resetLane(laneIndex);
   };
 
+  /** 引き継ぎ: WorkingForm のインライン確認から呼ばれるため confirm() 不要 */
   const makeHandleHandover = (laneIndex: number) => () => {
-    if (!window.confirm('引き継ぎとして保存し、待機中に戻りますか？\n（PIT OUT時刻は空欄になります）')) return;
     const draft = laneStates[laneIndex]?.draft;
     if (!draft) return;
     const record: PitRecord = {
@@ -168,6 +171,8 @@ const InputPage: React.FC = () => {
     } else {
       resetLane(laneIndex);
     }
+    // PIT OUT直後の誤爆防止ロックを開始
+    startPitOutLock();
   };
 
   const makeHandleToggleContinuous = (laneIndex: number) => () => {
@@ -178,7 +183,11 @@ const InputPage: React.FC = () => {
 
   const handleLaneCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const next = Number(e.target.value);
-    if (next >= laneCount) { setLaneCount(next); return; }
+    if (next >= laneCount) {
+      setLaneCount(next);
+      return;
+    }
+    // 削減対象レーンに作業中が含まれる場合は確認ダイアログ
     const hasWorkingData = laneStates.slice(next).some((ls) => ls?.status === 'working');
     if (hasWorkingData) {
       if (!window.confirm(
@@ -186,7 +195,11 @@ const InputPage: React.FC = () => {
         `レーン ${next + 1}〜${laneCount} の入力途中データが消えます。\n\nよろしいですか？`
       )) return;
     }
-    setLaneCount(next);
+    // setLaneCount の戻り値を確認し、失敗時はエラーを表示する
+    const ok = setLaneCount(next);
+    if (!ok) {
+      alert('作業中のレーンがあるため、レーン数を減らせません。\n作業中のレーンを完了または中断してから操作してください。');
+    }
   };
 
   const handleClearAll = () => {
@@ -263,9 +276,9 @@ const InputPage: React.FC = () => {
       {/* ========== メインエリア ========== */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* ---- 待機中レーン（上・flex-1 で残り全部） ---- */}
+        {/* ---- 待機中レーン（作業中あり→圧縮、作業中なし→全画面） ---- */}
         {standbyLanes.length > 0 && (
-          <div className="flex-1 overflow-y-auto bg-white px-2 py-2 space-y-1.5">
+          <div className={`${workingLanes.length > 0 ? 'flex-none max-h-[35vh]' : 'flex-1'} overflow-y-auto bg-white px-2 py-2 space-y-1.5`}>
             {standbyLanes.map((laneIndex) => {
               const ls = laneStates[laneIndex];
               if (!ls) return null;
@@ -305,17 +318,32 @@ const InputPage: React.FC = () => {
           </div>
         )}
 
-        {/* standby が 0 かつ working もある場合は working が flex-1 を取る */}
+        {/* standby が 0 かつ working もない場合 */}
         {standbyLanes.length === 0 && workingLanes.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
             レーンを選択して開始してください
           </div>
         )}
 
-        {/* ---- 作業中レーン（下・working があるときのみ表示） ---- */}
+        {/* ---- 作業中レーン（下・flex-1 で画面の大部分を占有） ---- */}
         {workingLanes.length > 0 && (
-          <div className={`${standbyLanes.length > 0 ? 'flex-none max-h-[60vh]' : 'flex-1'} overflow-y-auto border-t-2 border-gray-300 bg-gray-100 p-2`}>
+          <div className="relative flex-1 overflow-y-auto border-t-2 border-gray-300 bg-gray-100 p-2">
 
+            {/*
+              PIT OUT直後の操作ロックオーバーレイ。
+              透明だがpointer-events:allでタップを全て吸収する。
+              z-50 で作業カード群の上に被さる。
+            */}
+            {pitOutLocked && (
+              <div
+                className="absolute inset-0 z-50"
+                style={{ touchAction: 'none' }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+
+            {/* カード群: transition-all でカードが詰まる動きを滑らかに */}
             <div className="grid grid-cols-2 gap-2">
               {workingLanes.map((laneIndex) => {
                 const ls = laneStates[laneIndex];
@@ -324,7 +352,10 @@ const InputPage: React.FC = () => {
                 const bgColor = LANE_BG_COLORS[laneIndex] ?? 'bg-gray-50';
 
                 return (
-                  <div key={laneIndex} className={`rounded-xl border-2 overflow-hidden ${borderColor} ${bgColor}`}>
+                  <div
+                    key={laneIndex}
+                    className={`rounded-xl border-2 overflow-hidden transition-all duration-300 ease-in-out ${borderColor} ${bgColor}`}
+                  >
                     <WorkingForm
                       laneIndex={laneIndex}
                       draft={ls.draft}
@@ -343,7 +374,6 @@ const InputPage: React.FC = () => {
 
       </div>
 
-      <EditModal record={editingRecord} onClose={() => setEditingRecord(null)} />
       {showMasterModal && <MasterDataModal onClose={() => setShowMasterModal(false)} />}
     </div>
   );

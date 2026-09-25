@@ -141,7 +141,7 @@ export const usePitStore = create<PitStore>()(
         })),
     }),
     {
-      name: 'pit-records-storage',
+      name: 'pit-records-storage-v2',
       version: 2,
       migrate: (persistedState: unknown, fromVersion: number) => {
         const state = persistedState as Record<string, unknown> | null;

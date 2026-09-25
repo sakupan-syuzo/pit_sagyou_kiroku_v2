@@ -98,13 +98,12 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
   };
 
   const handleCancel = () => {
-    if (!window.confirm('作業データを破棄して待機中に戻りますか？')) return;
+    // WorkingForm のインライン二段階確認から呼ばれるため、ここでは即実行
     // resetLane は continuousMode を温存したままリセット
     resetLane(laneIndex);
   };
 
   const handleHandover = () => {
-    if (!window.confirm('引き継ぎとして保存し、待機中に戻りますか？\n（PIT OUT時刻は空欄になります）')) return;
     const record: PitRecord = {
       id: uuidv4(),
       createdAt: draft.createdAt,

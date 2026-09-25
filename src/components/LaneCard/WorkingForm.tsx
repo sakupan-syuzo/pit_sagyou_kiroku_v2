@@ -16,6 +16,9 @@ const LANE_HEADER_COLORS = [
 
 const DEFAULT_DRIVER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
+/** 取り消しの二段階確認が自動リセットされるまでの時間（ms） */
+const CANCEL_CONFIRM_TIMEOUT_MS = 5000;
+
 interface WorkingFormProps {
   laneIndex: number;
   draft: LaneDraft;
@@ -36,10 +39,50 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
 }) => {
   const headerColor = LANE_HEADER_COLORS[laneIndex] || 'bg-gray-500';
   const labelText = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
-  
+
   const entries = usePitStore((s) => s.entries);
   const entry = draft.carNo ? entries[draft.carNo] : undefined;
   const labels = entry?.drivers && entry.drivers.length > 0 ? entry.drivers : (DEFAULT_DRIVER_LABELS as readonly string[]);
+
+  /**
+   * 取り消しのインライン二段階確認ステート。
+   * - false: 通常の [引き継ぎ] [取り消し] 表示
+   * - true : 確認モードの [破棄OK？] [戻る] 表示（警告色）
+   */
+  const [cancelConfirming, setCancelConfirming] = React.useState(false);
+  const cancelTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 確認モードに入り、5秒後に自動で通常モードへ戻る */
+  const enterCancelConfirm = () => {
+    if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current);
+    setCancelConfirming(true);
+    cancelTimerRef.current = setTimeout(() => {
+      setCancelConfirming(false);
+      cancelTimerRef.current = null;
+    }, CANCEL_CONFIRM_TIMEOUT_MS);
+  };
+
+  /** 確認モードをキャンセルして通常モードに戻る */
+  const exitCancelConfirm = () => {
+    if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current);
+    cancelTimerRef.current = null;
+    setCancelConfirming(false);
+  };
+
+  /** 破棄を実行する */
+  const handleConfirmCancel = () => {
+    if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current);
+    cancelTimerRef.current = null;
+    setCancelConfirming(false);
+    onCancel();
+  };
+
+  // アンマウント時にタイマーをクリア
+  React.useEffect(() => {
+    return () => {
+      if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col">
@@ -146,7 +189,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
               <span className="text-xl">🔄</span> 交代
             </button>
           </div>
-          
+
           {draft.isDriverChanged && (
             <div className="flex flex-wrap gap-1">
               {labels.map((label, i) => {
@@ -208,22 +251,45 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
           🏁 PIT OUT
         </button>
 
-        {/* ---- 引き継ぎ / 取り消し（間隔を空けて誤操作防止） ---- */}
+        {/* ---- 引き継ぎ / 取り消し: インライン二段階確認 ---- */}
         <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onHandover}
-            className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-sm rounded-xl transition-colors shadow"
-          >
-            🔄 引き継ぎ
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-3 bg-white text-red-500 border-2 border-red-300 hover:bg-red-50 active:bg-red-100 font-bold text-sm rounded-xl transition-colors"
-          >
-            ✕ 取り消し
-          </button>
+          {!cancelConfirming ? (
+            <>
+              {/* 通常表示: [引き継ぎ] [取り消し] */}
+              <button
+                type="button"
+                onClick={onHandover}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-sm rounded-xl transition-colors shadow"
+              >
+                🔄 引き継ぎ
+              </button>
+              <button
+                type="button"
+                onClick={enterCancelConfirm}
+                className="flex-1 py-3 bg-white text-red-500 border-2 border-red-300 hover:bg-red-50 active:bg-red-100 font-bold text-sm rounded-xl transition-colors"
+              >
+                ✕ 取り消し
+              </button>
+            </>
+          ) : (
+            <>
+              {/* 確認表示: [破棄OK？] [戻る] — 警告色で目立たせる */}
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-black text-sm rounded-xl transition-colors shadow-lg animate-pulse"
+              >
+                🗑 破棄OK？
+              </button>
+              <button
+                type="button"
+                onClick={exitCancelConfirm}
+                className="flex-1 py-3 bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-700 font-bold text-sm rounded-xl transition-colors"
+              >
+                ← 戻る
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
