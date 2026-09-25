@@ -30,6 +30,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/],
       },
       manifest: {
+        id: 'pitrec-v2',
         name: 'ピット作業記録 V2',
         short_name: 'PitRec V2',
         description: 'モータースポーツのピット作業を記録するアプリ',
@@ -38,7 +39,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         scope: './',
-        start_url: './',
+        start_url: './?v=2',
         lang: 'ja',
         icons: [
           {

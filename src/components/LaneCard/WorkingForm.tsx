@@ -30,6 +30,42 @@ interface WorkingFormProps {
   onPitOut: () => void;
 }
 
+const formatElapsed = (ms: number): string => {
+  if (ms < 0) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (h > 0) {
+    return `${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const WorkingTimer: React.FC<{ pitInAt: number }> = ({ pitInAt }) => {
+  const [elapsed, setElapsed] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!pitInAt) {
+      setElapsed(0);
+      return;
+    }
+    const updateTimer = () => setElapsed(Math.max(0, Date.now() - pitInAt));
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
+    return () => clearInterval(timer);
+  }, [pitInAt]);
+
+  if (!pitInAt) return null;
+
+  return (
+    <div className="font-mono font-black text-2xl tracking-wider tabular-nums leading-none mb-1 shadow-black/10 text-white">
+      {formatElapsed(elapsed)}
+    </div>
+  );
+};
+
 const WorkingForm: React.FC<WorkingFormProps> = ({
   laneIndex,
   draft,
@@ -96,12 +132,15 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
   return (
     <div className="flex flex-col">
       {/* ======= ヘッダー ======= */}
-      <div className={`${headerColor} text-white px-3 py-2`}>
+      <div className={`${headerColor} text-white px-3 py-2 rounded-t-2xl`}>
         <div className="flex items-end justify-between gap-2">
-          {/* LANE ラベル */}
-          <span className="text-xs font-black tracking-widest opacity-80 shrink-0 pb-0.5">
-            {labelText}
-          </span>
+          {/* LANE ラベルとタイマー */}
+          <div className="flex flex-col shrink-0">
+            <WorkingTimer pitInAt={draft.pitInAt} />
+            <span className="text-xs font-black tracking-widest opacity-80 pb-0.5">
+              {labelText}
+            </span>
+          </div>
           {/* PIT No. */}
           <div className="flex flex-col items-center leading-none">
             <span className="text-xs font-black tracking-widest opacity-80">PIT</span>
@@ -113,7 +152,6 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
             <span className="text-3xl font-black leading-none">{draft.carNo || '—'}</span>
           </div>
         </div>
-
       </div>
 
       {/* ======= ボディ ======= */}
