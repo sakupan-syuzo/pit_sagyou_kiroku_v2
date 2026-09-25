@@ -219,14 +219,16 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
             <button
               type="button"
               onClick={() => onDraftChange({ isDriverChanged: false, pitOutDriver: '' })}
-              className={`flex-1 h-14 rounded-xl border-2 transition-colors flex flex-col items-center justify-center leading-tight ${
+              className={`flex-1 h-14 rounded-xl border-2 transition-colors flex flex-col items-center justify-center leading-tight overflow-hidden ${
                 !draft.isDriverChanged
                   ? 'bg-gray-500 text-white border-gray-500 shadow-inner'
                   : 'bg-white text-gray-400 border-gray-200 active:bg-gray-100'
               }`}
             >
-              <span className="text-xs font-bold opacity-80">継続</span>
-              <span className="font-black text-xl">{draft.pitInDriver || '未設定'}</span>
+              <span className="text-xs font-bold opacity-80 shrink-0">継続</span>
+              <span className="font-black text-base w-full truncate px-1 text-center">
+                {draft.pitInDriver || '未設定'}
+              </span>
             </button>
             <button
               type="button"
