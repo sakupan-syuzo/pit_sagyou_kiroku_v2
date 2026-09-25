@@ -43,6 +43,47 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
     value !== '' && !isPreset
   );
 
+  /**
+   * driverLabels の参照が変わった（≒ carNo が変更されてエントリーが切り替わった）
+   * タイミングで手入力モードを解除する。
+   * value が新しいプリセットに含まれていれば何もしない。
+   * 含まれていなければ値もクリアして初期状態に戻す。
+   */
+  React.useEffect(() => {
+    if (!inputMode) return; // 手入力モードでなければスキップ
+
+    // 新しいボタン群を計算して、現在値がプリセットに含まれているか判定
+    const newHasCustom = driverLabels && driverLabels.length > 0;
+    const newCount = newHasCustom ? driverLabels!.length : DEFAULT_DRIVER_LABELS.length;
+    const newButtons = Array.from({ length: newCount }).map((_, i) => {
+      const defaultLabel = DEFAULT_DRIVER_LABELS[i] || String.fromCharCode(65 + i);
+      const customLabel = newHasCustom ? driverLabels![i] : null;
+      return customLabel || defaultLabel;
+    });
+    const stillPreset = newButtons.includes(value);
+
+    if (!stillPreset) {
+      // 新しいプリセットに含まれないため手入力モードを解除し値をクリア
+      setInputMode(false);
+      onChange('');
+    } else {
+      // 新しいプリセットに含まれるため手入力モードのみ解除
+      setInputMode(false);
+    }
+    // driverLabels の内容変化を検知するため JSON 文字列で比較
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(driverLabels)]);
+
+  /**
+   * value が空文字にリセットされた（レーンリセット等）タイミングで
+   * 手入力モードを解除する。
+   */
+  React.useEffect(() => {
+    if (value === '') {
+      setInputMode(false);
+    }
+  }, [value]);
+
   const handlePreset = (val: string) => {
     onChange(val);
     setInputMode(false);

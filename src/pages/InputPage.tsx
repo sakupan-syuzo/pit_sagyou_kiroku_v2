@@ -278,7 +278,7 @@ const InputPage: React.FC = () => {
 
         {/* ---- 待機中レーン（作業中あり→圧縮、作業中なし→全画面） ---- */}
         {standbyLanes.length > 0 && (
-          <div className={`${workingLanes.length > 0 ? 'flex-none max-h-[35vh]' : 'flex-1'} overflow-y-auto bg-white px-2 py-2 space-y-1.5`}>
+          <div className={`${workingLanes.length > 0 ? 'flex-none max-h-[25vh]' : 'flex-1'} overflow-y-auto bg-white px-2 py-2 space-y-1.5`}>
             {standbyLanes.map((laneIndex) => {
               const ls = laneStates[laneIndex];
               if (!ls) return null;

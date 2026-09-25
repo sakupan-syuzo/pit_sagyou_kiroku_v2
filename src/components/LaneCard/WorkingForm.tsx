@@ -2,6 +2,7 @@ import React from 'react';
 import type { LaneDraft } from '../../types';
 
 import { usePitStore } from '../../store/usePitStore';
+import { normalizeCarNo } from '../../utils/carNoUtils';
 
 // レーンヘッダー色（InputPage と合わせる）
 const LANE_LABELS = [
@@ -41,8 +42,16 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
   const labelText = LANE_LABELS[laneIndex] || `LANE ${laneIndex + 1}`;
 
   const entries = usePitStore((s) => s.entries);
-  const entry = draft.carNo ? entries[draft.carNo] : undefined;
-  const labels = entry?.drivers && entry.drivers.length > 0 ? entry.drivers : (DEFAULT_DRIVER_LABELS as readonly string[]);
+
+  /**
+   * draft.carNo を正規化してエントリーリストから検索する。
+   * 全角/半角・ゼロ埋め・#記号の揺れを吸収する。
+   */
+  const normalizedCarNo = normalizeCarNo(draft.carNo || '');
+  const entry = normalizedCarNo ? entries[normalizedCarNo] : undefined;
+  const labels = entry?.drivers && entry.drivers.length > 0
+    ? entry.drivers
+    : (DEFAULT_DRIVER_LABELS as readonly string[]);
 
   /**
    * 取り消しのインライン二段階確認ステート。
@@ -110,23 +119,27 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
       {/* ======= ボディ ======= */}
       <div className="p-2 space-y-2">
 
-        {/* ---- タイヤ交換: 巨大セグメントコントロール ---- */}
+        {/* ---- タイヤ交換: 1〜4本ボタン（トグル式・再タップで0本に戻る） ---- */}
         <div>
-          <p className="text-xs font-black text-gray-500 mb-1">🛞 タイヤ交換本数</p>
+          <p className="text-xs font-black text-gray-500 mb-1">
+            🛞 タイヤ交換本数
+            {draft.tires === 0 && (
+              <span className="ml-1 font-normal text-gray-400">未選択=0</span>
+            )}
+          </p>
           <div className="flex gap-1">
-            {[0, 1, 2, 3, 4].map((n) => (
+            {[1, 2, 3, 4].map((n) => (
               <button
                 key={n}
                 type="button"
-                onClick={() => onDraftChange({ tires: n })}
-                className={`flex-1 h-16 flex flex-col items-center justify-center rounded-xl font-black text-lg border-2 transition-colors ${
+                onClick={() => onDraftChange({ tires: draft.tires === n ? 0 : n })}
+                className={`flex-1 aspect-square flex items-center justify-center rounded-xl font-black text-xl border-2 transition-colors ${
                   draft.tires === n
                     ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
                     : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'
                 }`}
               >
-                <span>{n}</span>
-                <span className="text-xs font-bold opacity-60">本</span>
+                {n}
               </button>
             ))}
           </div>
@@ -204,7 +217,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                     type="button"
                     disabled={isExcluded}
                     onClick={() => !isExcluded && onDraftChange({ pitOutDriver: label })}
-                    className={`flex-1 flex flex-col items-center justify-center min-w-[3rem] h-12 rounded-xl border-2 transition-colors leading-none overflow-hidden ${
+                    className={`flex-1 flex flex-col items-center justify-center min-w-[3rem] min-h-[44px] rounded-xl border-2 transition-colors leading-snug overflow-hidden py-1 ${
                       isExcluded
                         ? 'bg-gray-100 text-gray-300 border-gray-200 line-through cursor-not-allowed'
                         : isSelected
@@ -214,7 +227,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                     title={isExcluded ? `${label}: 乗車中` : label}
                   >
                     <span className="font-black text-sm">{defaultLabel}</span>
-                    {displaySub && <span className="text-[10px] font-bold mt-0.5">{displaySub}</span>}
+                    {displaySub && <span className="text-[10px] font-bold">{displaySub}</span>}
                   </button>
                 );
               })}
@@ -224,7 +237,7 @@ const WorkingForm: React.FC<WorkingFormProps> = ({
                 value={labels.includes(draft.pitOutDriver) ? '' : draft.pitOutDriver}
                 onChange={(e) => onDraftChange({ pitOutDriver: e.target.value })}
                 placeholder="その他"
-                className="flex-1 min-w-[3.5rem] h-12 border-2 border-gray-200 rounded-xl px-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex-1 min-w-[3.5rem] min-h-[44px] border-2 border-gray-200 rounded-xl px-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
           )}

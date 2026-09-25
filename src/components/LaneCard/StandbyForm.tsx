@@ -2,6 +2,7 @@ import React from 'react';
 import type { LaneDraft } from '../../types';
 import { usePitStore } from '../../store/usePitStore';
 import DriverSelector from '../DriverSelector';
+import { normalizeCarNo } from '../../utils/carNoUtils';
 
 interface StandbyFormProps {
   draft: LaneDraft;
@@ -13,8 +14,12 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
   const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition) || 'right';
   const entries = usePitStore((s) => s.entries);
 
-  // エントリーからドライバー名を取得
-  const entry = draft.carNo ? entries[draft.carNo] : undefined;
+  /**
+   * draft.carNo を正規化してエントリーリストから検索する。
+   * マスター側キーも正規化済みのため、全角/半角・ゼロ埋め・#記号の揺れを吸収する。
+   */
+  const normalizedCarNo = normalizeCarNo(draft.carNo || '');
+  const entry = normalizedCarNo ? entries[normalizedCarNo] : undefined;
   const driverLabels = entry?.drivers;
 
   return (
@@ -40,7 +45,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           value={draft.pitNo || ''}
           onChange={(e) => onDraftChange({ pitNo: e.target.value })}
           placeholder="PIT#"
-          className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-xs placeholder:font-normal"
         />
         {/* Car No. */}
         <input
@@ -49,7 +54,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
           value={draft.carNo || ''}
           onChange={(e) => onDraftChange({ carNo: e.target.value })}
           placeholder="Car#"
-          className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-12 shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-xs placeholder:font-normal"
         />
         {/* INドライバー: DriverSelector */}
         <div className="flex-1 min-w-0">

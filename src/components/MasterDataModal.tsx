@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { usePitStore } from '../store/usePitStore';
 import type { Entry } from '../types';
+import { normalizeCarNo } from '../utils/carNoUtils';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -12,6 +13,44 @@ type ColumnRole = 'ignore' | 'carno' | 'driver';
 
 interface MasterDataModalProps {
   onClose: () => void;
+}
+
+/**
+ * 同じ行内のアイテム群を X 座標のギャップで列に分割する。
+ *
+ * - ギャップ閾値 (gapThreshold) 未満の隣接アイテムは同じ列として結合
+ * - ギャップ閾値以上離れていれば別列（タブ区切り相当）とみなす
+ *
+ * 返り値: { text: string; x: number }[] — 列ごとに結合済みのアイテム列
+ */
+function clusterRowByXGap(
+  items: { text: string; x: number; width: number }[],
+  gapThreshold: number
+): { text: string; x: number }[] {
+  if (items.length === 0) return [];
+
+  // X 昇順ソート済み前提
+  const clusters: { text: string; x: number }[] = [];
+  let curText = items[0].text;
+  let curX = items[0].x;
+  let curRight = items[0].x + items[0].width;
+
+  for (let i = 1; i < items.length; i++) {
+    const gap = items[i].x - curRight;
+    if (gap < gapThreshold) {
+      // 近接 → 同じ列として結合（スペースで繋ぐ）
+      curText += ' ' + items[i].text;
+      curRight = items[i].x + items[i].width;
+    } else {
+      // 離れている → 列確定
+      clusters.push({ text: curText.trim(), x: curX });
+      curText = items[i].text;
+      curX = items[i].x;
+      curRight = items[i].x + items[i].width;
+    }
+  }
+  clusters.push({ text: curText.trim(), x: curX });
+  return clusters;
 }
 
 const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
@@ -28,13 +67,14 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      
-      let allItems: { text: string; x: number; y: number }[] = [];
+
+      // width 付きで取得
+      let allItems: { text: string; x: number; y: number; width: number }[] = [];
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-        
+
         textContent.items.forEach((item: any) => {
           const text = item.str.trim();
           if (!text) return;
@@ -43,6 +83,7 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
             x: item.transform[4],
             // ページごとにY座標をオフセットして混ざらないようにする（PDFは下がY=0）
             y: item.transform[5] - pageNum * 10000,
+            width: item.width ?? 0,
           });
         });
       }
@@ -54,8 +95,8 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
 
       // 1. Y座標でグループ化して行を生成
       allItems.sort((a, b) => b.y - a.y);
-      const rowsRaw: { text: string; x: number; y: number }[][] = [];
-      let currentRow: { text: string; x: number; y: number }[] = [];
+      const rowsRaw: { text: string; x: number; y: number; width: number }[][] = [];
+      let currentRow: { text: string; x: number; y: number; width: number }[] = [];
       let lastY = allItems[0].y;
 
       for (const item of allItems) {
@@ -75,56 +116,61 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
         rowsRaw.push(currentRow);
       }
 
-      // 2. 全X座標をクラスタリングして「マスター列（表の列位置）」を特定
-      const allX = allItems.map((i) => i.x).sort((a, b) => a - b);
-      const masterCols: number[] = [];
-      if (allX.length > 0) {
-        let currentClusterSum = allX[0];
-        let currentClusterCount = 1;
-        let prevX = allX[0];
+      // 2. 各行を X ギャップでクラスタリングして列に分割
+      //    gapThreshold: フォントサイズの約 0.8 文字分を目安に 12pt 相当で設定
+      const GAP_THRESHOLD = 12;
+      const clusteredRows: { text: string; x: number }[][] = rowsRaw.map((row) =>
+        clusterRowByXGap(row, GAP_THRESHOLD)
+      );
 
-        for (let i = 1; i < allX.length; i++) {
-          if (allX[i] - prevX > 15) { // 15px以上離れていれば別列とみなす
-            masterCols.push(currentClusterSum / currentClusterCount);
-            currentClusterSum = allX[i];
-            currentClusterCount = 1;
+      // 3. 全列の X 座標をクラスタリングして「マスター列位置」を特定
+      const allColX = clusteredRows.flatMap((row) => row.map((c) => c.x)).sort((a, b) => a - b);
+      const masterCols: number[] = [];
+      if (allColX.length > 0) {
+        let sum = allColX[0];
+        let cnt = 1;
+        let prev = allColX[0];
+        for (let i = 1; i < allColX.length; i++) {
+          if (allColX[i] - prev > 15) {
+            masterCols.push(sum / cnt);
+            sum = allColX[i];
+            cnt = 1;
           } else {
-            currentClusterSum += allX[i];
-            currentClusterCount++;
+            sum += allColX[i];
+            cnt++;
           }
-          prevX = allX[i];
+          prev = allColX[i];
         }
-        masterCols.push(currentClusterSum / currentClusterCount);
+        masterCols.push(sum / cnt);
       }
 
-      // 3. 各行のテキストをマスター列に当てはめる
+      // 4. 各行のクラスターをマスター列に当てはめる
       const parsedGrid: string[][] = [];
-      for (const row of rowsRaw) {
+      for (const row of clusteredRows) {
         const rowData: string[] = Array(masterCols.length).fill('');
-        for (const item of row) {
-          // 最も近いマスター列を探す
+        for (const cluster of row) {
           let bestCol = 0;
           let minDiff = Infinity;
           for (let i = 0; i < masterCols.length; i++) {
-            const diff = Math.abs(item.x - masterCols[i]);
+            const diff = Math.abs(cluster.x - masterCols[i]);
             if (diff < minDiff) {
               minDiff = diff;
               bestCol = i;
             }
           }
-          // すでに文字が入っていればスペース結合（結合セル対策）
-          rowData[bestCol] = rowData[bestCol] ? rowData[bestCol] + ' ' + item.text : item.text;
+          rowData[bestCol] = rowData[bestCol]
+            ? rowData[bestCol] + ' ' + cluster.text
+            : cluster.text;
         }
         parsedGrid.push(rowData);
       }
 
       setGrid(parsedGrid);
 
-      // 4. 上位行のヘッダー文字から役割を自動推測
+      // 5. 上位行のヘッダー文字から役割を自動推測
       const roles: ColumnRole[] = Array(masterCols.length).fill('ignore');
       for (let c = 0; c < masterCols.length; c++) {
         let combinedText = '';
-        // 上位5行をチェック
         for (let r = 0; r < Math.min(5, parsedGrid.length); r++) {
           combinedText += parsedGrid[r][c] + ' ';
         }
@@ -165,7 +211,7 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
   const handleSave = () => {
     const newEntries: Record<string, Entry> = {};
     const carNoIndex = columnRoles.indexOf('carno');
-    
+
     if (carNoIndex === -1) {
       alert('「Car No」の列が1つも選択されていません。');
       return;
@@ -181,18 +227,18 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
     }
 
     for (const row of grid) {
-      const carNoStr = row[carNoIndex]?.trim();
-      // CarNoっぽい文字列（数字を含む）かチェック
-      if (!carNoStr || !/\d/.test(carNoStr)) continue;
+      const carNoRaw = row[carNoIndex]?.trim();
+      // 数字を含む文字列かチェック
+      if (!carNoRaw || !/\d/.test(carNoRaw)) continue;
 
       const drivers = driverIndices
         .map((idx) => row[idx]?.trim())
-        .filter(Boolean); // 空白除外
+        .filter(Boolean);
 
       if (drivers.length > 0) {
-        // 先頭の連続する数字だけを抽出する（例: "19 BRP★NUTEC" -> "19"）
-        const match = carNoStr.match(/^(\d+)/);
-        const cleanCarNo = match ? match[1] : carNoStr;
+        // normalizeCarNo で #/No./ゼッケン除去＋先頭ゼロ除去＋全角正規化
+        const cleanCarNo = normalizeCarNo(carNoRaw);
+        if (!cleanCarNo) continue;
 
         newEntries[cleanCarNo] = {
           id: cleanCarNo,
@@ -282,7 +328,7 @@ const MasterDataModal: React.FC<MasterDataModalProps> = ({ onClose }) => {
                                   ? 'bg-blue-50/50'
                                   : 'text-gray-400'
                               }`}
-                              title={cell} // 全文をツールチップ表示
+                              title={cell}
                             >
                               {cell}
                             </td>
