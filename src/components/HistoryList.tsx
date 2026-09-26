@@ -12,6 +12,10 @@ const formatBool = (v: boolean) => (v ? 'あり' : 'なし');
 
 const HistoryList: React.FC<HistoryListProps> = ({ onEditRecord }) => {
   const records = usePitStore((s) => s.records);
+  const races = usePitStore((s) => s.races);
+
+  const getRaceName = (raceId?: string) =>
+    races.find((r) => r.id === raceId)?.name ?? null;
 
   // createdAt の降順（新しい順）
   const sorted = [...records].sort((a, b) => b.createdAt - a.createdAt);
@@ -36,14 +40,19 @@ const HistoryList: React.FC<HistoryListProps> = ({ onEditRecord }) => {
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              {/* 上段: PIT No. / Car No. */}
-              <div className="flex items-center gap-2 mb-1">
+              {/* 上段: PIT No. / Car No. / レース名 */}
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="bg-indigo-600 text-white text-xs font-bold rounded px-2 py-0.5">
                   PIT {record.pitNo}
                 </span>
                 <span className="bg-gray-800 text-white text-xs font-bold rounded px-2 py-0.5">
                   Car {record.carNo}
                 </span>
+                {getRaceName(record.raceId) && (
+                  <span className="bg-emerald-100 text-emerald-800 text-xs font-bold rounded px-2 py-0.5">
+                    {getRaceName(record.raceId)}
+                  </span>
+                )}
                 {!record.pitOutTime && (
                   <span className="bg-amber-100 text-amber-700 text-xs rounded px-2 py-0.5 font-bold">
                     引き継ぎ

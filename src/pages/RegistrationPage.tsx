@@ -10,7 +10,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type DriverRole = 'driver_a' | 'driver_b' | 'driver_c' | 'driver_d' | 'driver_e' | 'driver_f';
-type ColumnRole = 'ignore' | 'carno' | 'pitno' | DriverRole;
+type ColumnRole = 'ignore' | 'carno' | 'pitno' | 'carno_driver_a' | DriverRole;
 type GridRow = { y: number; cells: string[] };
 
 const RegistrationPage: React.FC = () => {
@@ -18,7 +18,16 @@ const RegistrationPage: React.FC = () => {
   const [columnRoles, setColumnRoles] = useState<ColumnRole[]>([]);
   const [isParsing, setIsParsing] = useState(false);
   const [mergeDrivers, setMergeDrivers] = useState(false);
-  const setEntries = usePitStore((s) => s.setEntries);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  const races = usePitStore((s) => s.races);
+  const activeRaceId = usePitStore((s) => s.activeRaceId);
+  const setActiveRace = usePitStore((s) => s.setActiveRace);
+  const updateRaceName = usePitStore((s) => s.updateRaceName);
+  const setRaceEntries = usePitStore((s) => s.setRaceEntries);
+
+  const activeRace = races.find((r) => r.id === activeRaceId) ?? races[0];
 
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -155,6 +164,23 @@ const RegistrationPage: React.FC = () => {
           driverCount++;
         }
       }
+
+      // 後処理：どの列も carno にならなかった場合、「数字+スペース+文字」パターンで混在列を検出
+      if (!roles.includes('carno')) {
+        for (let c = 0; c < masterCols.length; c++) {
+          let mergedCount = 0;
+          for (let r = 1; r < Math.min(10, parsedGrid.length); r++) {
+            const cell = parsedGrid[r].cells[c]?.trim() ?? '';
+            // "7 高木 彪乃介" のように数字+スペース+文字で始まるセルをカウント
+            if (/^\d+\s+\S/.test(cell)) mergedCount++;
+          }
+          if (mergedCount >= 3) {
+            roles[c] = 'carno_driver_a';
+            break;
+          }
+        }
+      }
+
       setColumnRoles(roles);
 
     } catch (err) {
@@ -173,21 +199,61 @@ const RegistrationPage: React.FC = () => {
   };
 
   const handleSave = () => {
-    const entries = usePitStore.getState().entries;
-    const newEntries: Record<string, Entry> = { ...entries }; // 既存データとマージ
+    const storeEntries = usePitStore.getState().races.find(r => r.id === activeRaceId)?.entries ?? {};
+    const newEntries: Record<string, Entry> = { ...storeEntries }; // 既存データとマージ
     const carNoIndex = columnRoles.indexOf('carno');
     const pitNoIndex = columnRoles.indexOf('pitno');
+    const mergedColIndex = columnRoles.indexOf('carno_driver_a');
 
-    if (carNoIndex === -1) {
-      alert('「Car No」の列が1つも選択されていません。');
+    const hasMergedCol = mergedColIndex !== -1;
+
+    // 「ゼッケン＋ドライバー混在」列を使う場合はcarnoチェックを免除
+    if (carNoIndex === -1 && !hasMergedCol) {
+      alert('「Car No」か「ゼッケン＋ドラA（混在）」の列を選択してください。');
       return;
     }
 
     const hasDriver = columnRoles.some((r) => r.startsWith('driver_'));
-    if (!hasDriver && pitNoIndex === -1) {
+    if (!hasDriver && pitNoIndex === -1 && !hasMergedCol) {
       alert('「ドライバー」か「PIT No」のどちらかの列を選択してください。');
       return;
     }
+
+    // ---- 【混在列モード】 carno_driver_a の場合は独自のシンプルな処理で完結 ----
+    if (hasMergedCol) {
+      // パターン: "7 高木 彪乃介/ T.TAKAGI" → carNo="7", driverA="高木 彪乃介/ T.TAKAGI"
+      const headerKeywords = ['ゼッケン', 'driver', 'ドライバー', 'name', 'no', '番号'];
+      for (const row of grid) {
+        const cell = row.cells[mergedColIndex]?.trim() ?? '';
+        const match = cell.match(/^(\d+)\s+(.+)$/);
+        if (!match) continue;
+        const lower = cell.toLowerCase();
+        if (headerKeywords.some((k) => lower.includes(k) && !/\d/.test(cell))) continue;
+
+        const cleanCarNo = normalizeCarNo(match[1]);
+        const driverName = match[2].trim();
+        if (!cleanCarNo || !driverName) continue;
+
+        if (!newEntries[cleanCarNo]) {
+          newEntries[cleanCarNo] = { id: cleanCarNo, carNo: cleanCarNo, drivers: [] };
+        }
+        if (!newEntries[cleanCarNo].drivers.includes(driverName)) {
+          newEntries[cleanCarNo].drivers = [driverName];
+        }
+        // pitNo列があれば取得
+        if (pitNoIndex !== -1) {
+          const pitNoRaw = row.cells[pitNoIndex]?.trim();
+          if (pitNoRaw && /\d/.test(pitNoRaw)) {
+            newEntries[cleanCarNo].pitNo = pitNoRaw;
+          }
+        }
+      }
+      setRaceEntries(activeRaceId, newEntries);
+      alert(`${Object.keys(newEntries).length} 件を「${activeRace.name}」に登録しました。`);
+      return;
+    }
+
+    // ---- 【通常モード】 ----
 
     // 1. Car No (アンカー) をすべて抽出
     const anchors: {
@@ -303,15 +369,78 @@ const RegistrationPage: React.FC = () => {
       }
     }
 
-    setEntries(newEntries);
-    alert(`${anchors.length} 件の情報を更新しました。\n（※すでに登録されていた他のエントリーと結合されました）`);
+    setRaceEntries(activeRaceId, newEntries);
+    alert(`${anchors.length} 件の情報を「${activeRace.name}」に更新しました。\n（※すでに登録されていた他のエントリーと結合されました）`);
+  };
+
+  const handleStartEditName = () => {
+    setNameInput(activeRace.name);
+    setEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    if (nameInput.trim()) {
+      updateRaceName(activeRaceId, nameInput.trim());
+    }
+    setEditingName(false);
   };
 
   return (
     <div className="flex flex-col h-full bg-gray-100 overflow-hidden">
       {/* ヘッダー */}
-      <div className="flex-none bg-white border-b border-gray-200 px-3 py-2 flex items-center shadow-sm z-10">
-        <h1 className="text-sm font-black text-gray-800">⚙️ エントリー登録 (PDF解析)</h1>
+      <div className="flex-none bg-white border-b border-gray-200 px-3 py-2 shadow-sm z-10 space-y-2">
+        {/* レース選択 */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-500 shrink-0">記録対象レース：</span>
+          <select
+            value={activeRaceId}
+            onChange={(e) => {
+              setActiveRace(e.target.value);
+              setEditingName(false);
+              setGrid([]);
+              setColumnRoles([]);
+            }}
+            className="flex-1 text-sm font-bold border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {races.map((race) => (
+              <option key={race.id} value={race.id}>
+                {race.name}
+                {Object.keys(race.entries).length > 0 ? ` ✅ (${Object.keys(race.entries).length}台)` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* レース名編集 */}
+        <div className="flex items-center gap-2">
+          {editingName ? (
+            <>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                autoFocus
+                className="flex-1 text-sm border border-blue-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="レース名を入力"
+              />
+              <button
+                onClick={handleSaveName}
+                className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-3 py-1.5"
+              >保存</button>
+              <button
+                onClick={() => setEditingName(false)}
+                className="text-xs font-bold text-gray-500 hover:text-gray-700"
+              >キャンセル</button>
+            </>
+          ) : (
+            <button
+              onClick={handleStartEditName}
+              className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"
+            >
+              ✏️ レース名を変更（現在: {activeRace.name}）
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ボディ */}
@@ -352,6 +481,8 @@ const RegistrationPage: React.FC = () => {
                               ? 'bg-amber-100 text-amber-800 border-amber-300'
                               : role === 'pitno'
                               ? 'bg-green-100 text-green-800 border-green-300'
+                              : role === 'carno_driver_a'
+                              ? 'bg-orange-100 text-orange-800 border-orange-300'
                               : role.startsWith('driver_')
                               ? 'bg-blue-100 text-blue-800 border-blue-300'
                               : 'bg-white text-gray-500 border-gray-300'
@@ -360,6 +491,7 @@ const RegistrationPage: React.FC = () => {
                           <option value="ignore">❌ 無視</option>
                           <option value="carno">🏎️ Car No</option>
                           <option value="pitno">🏁 PIT No</option>
+                          <option value="carno_driver_a">🔢 ゼッケン＋ドラA（混在）</option>
                           <option value="driver_a">👤 ドラ A</option>
                           <option value="driver_b">👤 ドラ B</option>
                           <option value="driver_c">👤 ドラ C</option>
@@ -382,6 +514,8 @@ const RegistrationPage: React.FC = () => {
                             className={`p-2 border-r border-gray-100 max-w-[200px] truncate ${
                               role === 'carno'
                                 ? 'bg-amber-50/50 font-bold'
+                                : role === 'carno_driver_a'
+                                ? 'bg-orange-50/50 font-bold'
                                 : role.startsWith('driver_')
                                 ? 'bg-blue-50/50'
                                 : 'text-gray-400'
@@ -427,14 +561,14 @@ const RegistrationPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              if (window.confirm('現在登録されているエントリーリストとピット割り当てをすべて削除します。よろしいですか？')) {
-                setEntries({});
-                alert('全データをクリアしました。');
+              if (window.confirm(`「${activeRace.name}」のエントリーリストとピット割り当てをクリアします。よろしいですか？`)) {
+                setRaceEntries(activeRaceId, {});
+                alert(`「${activeRace.name}」のデータをクリアしました。`);
               }
             }}
             className="px-4 py-3 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors shadow shrink-0"
           >
-            データクリア
+            このレースのデータクリア
           </button>
           <button
             type="button"

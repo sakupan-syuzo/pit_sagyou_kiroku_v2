@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PitRecord, LaneDraft, LaneStatus, Entry } from '../types';
+import type { PitRecord, LaneDraft, LaneStatus, Entry, Race } from '../types';
 
 export type LaneState = {
   status: LaneStatus;
@@ -29,18 +29,31 @@ export const initialLaneState = (): LaneState => ({
   continuousMode: false,
 });
 
+const RACE_IDS = ['race1', 'race2', 'race3', 'race4', 'race5'] as const;
+const DEFAULT_RACE_NAMES = ['レース 1', 'レース 2', 'レース 3', 'レース 4', 'レース 5'];
+
+const initialRaces = (): Race[] =>
+  RACE_IDS.map((id, i) => ({
+    id,
+    name: DEFAULT_RACE_NAMES[i],
+    entries: {},
+  }));
+
 interface PitStore {
   records: PitRecord[];
   sessionName: string;
   inspector: string;
   laneCount: number;        // 1〜10
   laneStates: LaneState[];  // 可変長（最大10）
-  pitInButtonPosition: 'left' | 'right'; // PIT INボタン位置
-  entries: Record<string, Entry>; // CarNo をキーとするエントリーリスト
+  pitInButtonPosition: 'left' | 'right';
+  entries: Record<string, Entry>; // アクティブレースのエントリー（後方互換用ミラー）
+  races: Race[];            // レース1〜5の設定
+  activeRaceId: string;     // 現在アクティブなレースID
 
   addRecord: (record: PitRecord) => void;
   updateRecord: (id: string, patch: Partial<PitRecord>) => void;
   deleteRecord: (id: string) => void;
+  setRecords: (records: PitRecord[]) => void;
   setSessionName: (v: string) => void;
   setInspector: (v: string) => void;
   setLaneCount: (count: number) => boolean;
@@ -50,6 +63,10 @@ interface PitStore {
   clearAllData: () => void;
   setPitInButtonPosition: (pos: 'left' | 'right') => void;
   setEntries: (entries: Record<string, Entry>) => void;
+  // レース管理
+  setActiveRace: (raceId: string) => void;
+  updateRaceName: (raceId: string, name: string) => void;
+  setRaceEntries: (raceId: string, entries: Record<string, Entry>) => void;
 }
 
 export const usePitStore = create<PitStore>()(
@@ -62,6 +79,8 @@ export const usePitStore = create<PitStore>()(
       laneStates: [initialLaneState(), initialLaneState()],
       pitInButtonPosition: 'right',
       entries: {},
+      races: initialRaces(),
+      activeRaceId: 'race1',
 
       addRecord: (record) =>
         set((state) => ({ records: [...state.records, record] })),
@@ -78,10 +97,49 @@ export const usePitStore = create<PitStore>()(
           records: state.records.filter((r) => r.id !== id),
         })),
 
+      setRecords: (records) => set({ records }),
+
       setSessionName: (v) => set({ sessionName: v }),
       setInspector: (v) => set({ inspector: v }),
       setPitInButtonPosition: (pos) => set({ pitInButtonPosition: pos }),
-      setEntries: (entries) => set({ entries }),
+
+      // 後方互換: entries への直接書き込みは「アクティブレース」に反映
+      setEntries: (entries) =>
+        set((state) => {
+          const updatedRaces = state.races.map((r) =>
+            r.id === state.activeRaceId ? { ...r, entries } : r
+          );
+          return { entries, races: updatedRaces };
+        }),
+
+      // レース切り替え: entriesミラーを更新
+      setActiveRace: (raceId) =>
+        set((state) => {
+          const race = state.races.find((r) => r.id === raceId);
+          return {
+            activeRaceId: raceId,
+            entries: race?.entries ?? {},
+          };
+        }),
+
+      // レース名変更
+      updateRaceName: (raceId, name) =>
+        set((state) => ({
+          races: state.races.map((r) =>
+            r.id === raceId ? { ...r, name } : r
+          ),
+        })),
+
+      // レースのエントリーを保存（entriesミラーも更新）
+      setRaceEntries: (raceId, entries) =>
+        set((state) => {
+          const updatedRaces = state.races.map((r) =>
+            r.id === raceId ? { ...r, entries } : r
+          );
+          // アクティブレースが変更された場合のみミラー更新
+          const newEntries = raceId === state.activeRaceId ? entries : state.entries;
+          return { races: updatedRaces, entries: newEntries };
+        }),
 
       setLaneCount: (count) => {
         let success = true;
@@ -137,12 +195,12 @@ export const usePitStore = create<PitStore>()(
           sessionName: '',
           inspector: '',
           laneStates: Array.from({ length: s.laneCount }, () => initialLaneState()),
-          // entries はマスターデータなのでクリアしない
+          // entries・races はマスターデータなのでクリアしない
         })),
     }),
     {
       name: 'pit-records-storage-v2',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, fromVersion: number) => {
         const state = persistedState as Record<string, unknown> | null;
         if (!state) return state as unknown as PitStore;
@@ -153,13 +211,23 @@ export const usePitStore = create<PitStore>()(
         if (state.entries === undefined) {
           state.entries = {};
         }
+        // v3移行: races が存在しない場合は初期化し、既存 entries を race1 に移行
+        if (!Array.isArray(state.races) || (state.races as Race[]).length === 0) {
+          const races = initialRaces();
+          if (state.entries && Object.keys(state.entries as object).length > 0) {
+            races[0].entries = state.entries as Record<string, Entry>;
+          }
+          state.races = races;
+        }
+        if (state.activeRaceId === undefined) {
+          state.activeRaceId = 'race1';
+        }
 
         if (fromVersion < 1) {
           if (!Array.isArray(state.records)) state.records = [];
           if (!Array.isArray(state.laneStates)) {
             state.laneStates = [initialLaneState(), initialLaneState()];
           }
-          // ... migrations omitted for brevity (kept logical equivalent)
         }
 
         return state as unknown as PitStore;

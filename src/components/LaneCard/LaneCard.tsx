@@ -61,6 +61,7 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
   const setLaneState = usePitStore((s) => s.setLaneState);
   const updateDraft = usePitStore((s) => s.updateDraft);
   const resetLane = usePitStore((s) => s.resetLane);
+  const activeRaceId = usePitStore((s) => s.activeRaceId);
 
   // laneStates[laneIndex] が undefined の場合はガード
   if (!laneState) return null;
@@ -107,6 +108,7 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
     const record: PitRecord = {
       id: uuidv4(),
       createdAt: draft.createdAt,
+      raceId: activeRaceId,
       carNo: draft.carNo,
       pitNo: draft.pitNo,
       pitInDriver: draft.pitInDriver,
@@ -133,6 +135,7 @@ const LaneCard: React.FC<LaneCardProps> = ({ laneIndex }) => {
     const record: PitRecord = {
       id: uuidv4(),
       createdAt: draft.createdAt,
+      raceId: activeRaceId,
       carNo: draft.carNo,
       pitNo: draft.pitNo,
       pitInDriver: draft.pitInDriver,
