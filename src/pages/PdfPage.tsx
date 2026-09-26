@@ -1,5 +1,5 @@
 import React from 'react';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import { Download, Share, Upload } from 'lucide-react';
 import { usePitStore } from '../store/usePitStore';
 import HistoryList from '../components/HistoryList';
@@ -7,6 +7,7 @@ import EditModal from '../components/EditModal';
 import PitDocument from '../pdf/PitDocument';
 import { calcDuration, getDriverLabel } from '../pdf/pdfUtils';
 import type { PitRecord, Entry } from '../types';
+import JsonImportModal from '../components/JsonImportModal';
 
 type OutputFormat = 'pdf' | 'csv';
 
@@ -33,7 +34,7 @@ const recordToCsvRow = (r: PitRecord, index: number, entries: Record<string, Ent
   return cells.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',');
 };
 
-const downloadCsv = async (records: PitRecord[], sessionName: string, entries: Record<string, Entry>) => {
+const handleCsvExport = async (records: PitRecord[], sessionName: string, entries: Record<string, Entry>, action: 'download' | 'share') => {
   const header = [
     '"#"', '"PIT No."', '"Car No."',
     '"PIT IN時刻"', '"PIT OUT時刻"', '"滞在時間"',
@@ -53,34 +54,39 @@ const downloadCsv = async (records: PitRecord[], sessionName: string, entries: R
     .replace(/\//g, '');
   const fileName = `pit_record_${sessionName || 'session'}_${dateStr}.csv`;
 
-  // 共有APIが使える場合は共有を優先
-  if (navigator.canShare) {
-    const file = new File([blob], fileName, { type: 'text/csv' });
-    if (navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: 'PitRec CSVデータ',
-          files: [file],
-        });
-        return;
-      } catch (err) {
-        // キャンセル時は何もしない
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Share failed', err);
-        } else {
+  if (action === 'share') {
+    // 共有APIが使える場合は共有を優先
+    if (navigator.canShare) {
+      const file = new File([blob], fileName, { type: 'text/csv' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: 'PitRec CSVデータ',
+            files: [file],
+          });
           return;
+        } catch (err) {
+          // キャンセル時は何もしない
+          if ((err as Error).name !== 'AbortError') {
+            console.error('Share failed', err);
+          } else {
+            return;
+          }
         }
       }
     }
+    alert('お使いのブラウザはファイル共有に対応していません。保存を使用してください。');
+  } else {
+    // フォールバック: ダウンロード
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
-
-  // フォールバック: ダウンロード
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
 };
 
 const PdfPage: React.FC = () => {
@@ -88,15 +94,47 @@ const PdfPage: React.FC = () => {
   const sessionName = usePitStore((s) => s.sessionName);
   const inspector = usePitStore((s) => s.inspector);
   const entries = usePitStore((s) => s.entries);
+  const races = usePitStore((s) => s.races);
+  
   const setSessionName = usePitStore((s) => s.setSessionName);
   const setInspector = usePitStore((s) => s.setInspector);
   const setRecords = usePitStore((s) => s.setRecords);
-  const setEntries = usePitStore((s) => s.setEntries);
+  const updateRaceName = usePitStore((s) => s.updateRaceName);
+  const setRaceEntries = usePitStore((s) => s.setRaceEntries);
 
   const [editingRecord, setEditingRecord] = React.useState<PitRecord | null>(null);
   const [format, setFormat] = React.useState<OutputFormat>('pdf');
+  const [pendingImportData, setPendingImportData] = React.useState<any | null>(null);
+  const [isSharingPdf, setIsSharingPdf] = React.useState(false);
 
   const pdfFileName = `pit_record_${sessionName || 'session'}_${new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '')}.pdf`;
+
+  const handlePdfShare = async () => {
+    setIsSharingPdf(true);
+    try {
+      const doc = <PitDocument records={records} sessionName={sessionName} inspector={inspector} entries={entries} />;
+      const blob = await pdf(doc).toBlob();
+      const file = new File([blob], pdfFileName, { type: 'application/pdf' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: 'PitRec PDFデータ',
+            files: [file],
+          });
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') console.error('Share failed', err);
+        }
+      } else {
+        alert('お使いのブラウザはファイル共有に対応していません。保存を使用してください。');
+      }
+    } catch (error) {
+      console.error('PDF generation failed', error);
+      alert('PDFの生成に失敗しました。');
+    } finally {
+      setIsSharingPdf(false);
+    }
+  };
 
   const shareJson = async () => {
     if (records.length === 0) {
@@ -104,31 +142,65 @@ const PdfPage: React.FC = () => {
       return;
     }
     const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
       pitRecords: records,
-      entries: entries,
+      entries: entries, // 下位互換性用
+      races: races,     // 複数レース対応
       sessionName,
       inspector,
     };
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
-    const file = new File([blob], `pitrec_data_${Date.now()}.json`, { type: 'application/json' });
+    const fileName = `pitrec_${sessionName || 'data'}_${Date.now()}.json`;
+    const file = new File([blob], fileName, { type: 'application/json' });
 
+    // 1. Web Share API（ファイル共有対応）
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ title: 'PitRec 引き継ぎデータ', files: [file] });
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return; // キャンセル
+        console.warn('File share failed, trying text share:', err);
+      }
+    }
+
+    // 2. テキスト共有（ファイル共有不可の場合）
+    if (navigator.share) {
       try {
         await navigator.share({
           title: 'PitRec 引き継ぎデータ',
-          files: [file],
+          text: jsonStr,
         });
+        return;
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') console.error('Share failed', err);
+        if ((err as Error).name === 'AbortError') return;
+        console.warn('Text share failed:', err);
       }
-    } else {
+    }
+
+    // 3. ダウンロード（PC等）
+    try {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.name;
+      a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      return;
+    } catch (err) {
+      console.warn('Download failed:', err);
+    }
+
+    // 4. 最終フォールバック：クリップボードにコピー
+    try {
+      await navigator.clipboard.writeText(jsonStr);
+      alert('データをクリップボードにコピーしました。\nLINEやメモアプリに貼り付けて送ってください。');
+    } catch {
+      alert('共有に失敗しました。端末または設定を確認してください。');
     }
   };
 
@@ -141,21 +213,8 @@ const PdfPage: React.FC = () => {
       try {
         const data = JSON.parse(ev.target?.result as string);
         if (data.pitRecords && Array.isArray(data.pitRecords)) {
-          const newRecords = [...records];
-          let added = 0;
-          for (const r of data.pitRecords) {
-            if (!newRecords.some(existing => existing.id === r.id)) {
-              newRecords.push(r);
-              added++;
-            }
-          }
-          if (added > 0) {
-            setRecords(newRecords);
-          }
-          if (data.entries) {
-            setEntries({ ...entries, ...data.entries });
-          }
-          alert(`${added}件のレコードを引き継ぎ（結合）しました。`);
+          // モーダルを表示してマッピングを選択させる
+          setPendingImportData(data);
         } else {
           alert('無効なJSONデータです');
         }
@@ -165,6 +224,61 @@ const PdfPage: React.FC = () => {
       e.target.value = '';
     };
     reader.readAsText(file);
+  };
+
+  const handleConfirmImport = (mapping: Record<string, string>) => {
+    if (!pendingImportData) return;
+    const data = pendingImportData;
+    
+    const newRecords = [...records];
+    let addedRecords = 0;
+
+    // 1. レコードのマージ
+    const importedRecords = data.pitRecords || [];
+    for (const r of importedRecords) {
+      const incRaceId = r.raceId || (data.races ? 'race1' : 'legacy');
+      const targetRaceId = mapping[incRaceId];
+
+      if (!targetRaceId || targetRaceId === 'skip') continue;
+
+      if (!newRecords.some(existing => existing.id === r.id)) {
+        newRecords.push({ ...r, raceId: targetRaceId });
+        addedRecords++;
+      }
+    }
+
+    // 2. エントリーとレース名のマージ
+    if (data.races && Array.isArray(data.races)) {
+      data.races.forEach((incRace: any) => {
+        const targetRaceId = mapping[incRace.id];
+        if (targetRaceId && targetRaceId !== 'skip') {
+          // エントリーをマージ
+          if (incRace.entries) {
+            const currentRace = races.find(r => r.id === targetRaceId);
+            const currentEntries = currentRace ? currentRace.entries : {};
+            setRaceEntries(targetRaceId, { ...currentEntries, ...incRace.entries });
+          }
+          // レース名を更新（相手側の名前に合わせる）
+          if (incRace.name) {
+            updateRaceName(targetRaceId, incRace.name);
+          }
+        }
+      });
+    } else if (data.entries) {
+      const targetRaceId = mapping['legacy'];
+      if (targetRaceId && targetRaceId !== 'skip') {
+        const currentRace = races.find(r => r.id === targetRaceId);
+        const currentEntries = currentRace ? currentRace.entries : {};
+        setRaceEntries(targetRaceId, { ...currentEntries, ...data.entries });
+      }
+    }
+
+    if (addedRecords > 0) {
+      setRecords(newRecords);
+    }
+    
+    alert(`データの引き継ぎが完了しました。\n（レコード追加: ${addedRecords}件）`);
+    setPendingImportData(null);
   };
 
   return (
@@ -222,41 +336,65 @@ const PdfPage: React.FC = () => {
             作業記録がないため出力できません
           </div>
         ) : format === 'pdf' ? (
-          <PDFDownloadLink
-            document={
-              <PitDocument
-                records={records}
-                sessionName={sessionName}
-                inspector={inspector}
-                entries={entries}
-              />
-            }
-            fileName={pdfFileName}
-          >
-            {({ loading, error }) => (
-              <button
-                className={`w-full flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md ${
-                  loading
-                    ? 'bg-gray-400 text-white cursor-wait'
-                    : error
-                    ? 'bg-red-500 text-white'
-                    : 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white'
-                }`}
-                disabled={loading}
-              >
-                <Download size={20} />
-                {loading ? 'PDF生成中...' : error ? 'エラー' : 'PDFダウンロード'}
-              </button>
-            )}
-          </PDFDownloadLink>
+          <div className="w-full flex gap-2">
+            <PDFDownloadLink
+              document={
+                <PitDocument
+                  records={records}
+                  sessionName={sessionName}
+                  inspector={inspector}
+                  entries={entries}
+                />
+              }
+              fileName={pdfFileName}
+              className="flex-1"
+            >
+              {({ loading, error }) => (
+                <button
+                  className={`w-full flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md ${
+                    loading
+                      ? 'bg-gray-400 text-white cursor-wait'
+                      : error
+                      ? 'bg-red-500 text-white'
+                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white'
+                  }`}
+                  disabled={loading}
+                >
+                  <Download size={20} />
+                  {loading ? '生成中...' : error ? 'エラー' : 'PDF保存'}
+                </button>
+              )}
+            </PDFDownloadLink>
+            <button
+              onClick={handlePdfShare}
+              disabled={isSharingPdf}
+              className={`flex-1 flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md ${
+                isSharingPdf
+                  ? 'bg-gray-200 text-gray-500 cursor-wait border border-gray-300'
+                  : 'bg-white text-red-600 border border-red-200 hover:bg-red-50 active:bg-red-100'
+              }`}
+            >
+              <Share size={20} />
+              {isSharingPdf ? '生成中...' : 'PDF共有'}
+            </button>
+          </div>
         ) : (
-          <button
-            onClick={() => downloadCsv(records, sessionName, entries)}
-            className="w-full flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white"
-          >
-            <Share size={20} />
-            CSVで出力 / 共有する
-          </button>
+          <div className="w-full flex gap-2">
+            <button
+              onClick={() => handleCsvExport(records, sessionName, entries, 'download')}
+              className="flex-1 flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white"
+            >
+              <Download size={20} />
+              CSV保存
+            </button>
+            <button
+              onClick={() => handleCsvExport(records, sessionName, entries, 'share')}
+              className="flex-1 flex items-center justify-center gap-2 font-bold py-3 rounded-xl text-base transition-colors shadow-md bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 active:bg-emerald-100"
+            >
+              <Share size={20} />
+              CSV共有
+            </button>
+          </div>
         )}
       </div>
 
@@ -297,6 +435,14 @@ const PdfPage: React.FC = () => {
       </div>
 
       <EditModal record={editingRecord} onClose={() => setEditingRecord(null)} />
+
+      {pendingImportData && (
+        <JsonImportModal
+          data={pendingImportData}
+          onClose={() => setPendingImportData(null)}
+          onConfirm={handleConfirmImport}
+        />
+      )}
     </div>
   );
 };

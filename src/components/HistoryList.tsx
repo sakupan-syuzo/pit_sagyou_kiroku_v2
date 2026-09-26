@@ -14,8 +14,11 @@ const HistoryList: React.FC<HistoryListProps> = ({ onEditRecord }) => {
   const records = usePitStore((s) => s.records);
   const races = usePitStore((s) => s.races);
 
-  const getRaceName = (raceId?: string) =>
-    races.find((r) => r.id === raceId)?.name ?? null;
+  // raceId がない古いレコードは 'race1' として扱う（= レース 1 or 名前変更後の名前）
+  const getRaceName = (raceId?: string) => {
+    const id = raceId ?? 'race1';
+    return races.find((r) => r.id === id)?.name ?? null;
+  };
 
   // createdAt の降順（新しい順）
   const sorted = [...records].sort((a, b) => b.createdAt - a.createdAt);

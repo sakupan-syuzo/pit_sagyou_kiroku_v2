@@ -13,7 +13,10 @@ type DriverRole = 'driver_a' | 'driver_b' | 'driver_c' | 'driver_d' | 'driver_e'
 type ColumnRole = 'ignore' | 'carno' | 'pitno' | 'carno_driver_a' | DriverRole;
 type GridRow = { y: number; cells: string[] };
 
+import EntryManager from '../components/Registration/EntryManager';
+
 const RegistrationPage: React.FC = () => {
+  const [viewMode, setViewMode] = useState<'pdf' | 'manage'>('pdf');
   const [grid, setGrid] = useState<GridRow[]>([]);
   const [columnRoles, setColumnRoles] = useState<ColumnRole[]>([]);
   const [isParsing, setIsParsing] = useState(false);
@@ -441,10 +444,32 @@ const RegistrationPage: React.FC = () => {
             </button>
           )}
         </div>
+        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+          <div className="flex w-full sm:w-auto bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setViewMode('pdf')}
+              className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                viewMode === 'pdf' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              📄 PDFから登録
+            </button>
+            <button
+              onClick={() => setViewMode('manage')}
+              className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                viewMode === 'manage' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              🛠️ 登録済みデータを管理
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ボディ */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-2 gap-2">
+        {viewMode === 'pdf' ? (
+          <>
         <div className="shrink-0 bg-white p-3 rounded-xl shadow-sm space-y-1">
           <p className="text-sm font-bold text-gray-700">1. PDFファイルを選択してください</p>
           <div className="flex items-center justify-between">
@@ -540,46 +565,55 @@ const RegistrationPage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-
-      {/* フッター */}
-      <div className="p-3 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
-        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={mergeDrivers}
-            onChange={(e) => setMergeDrivers(e.target.checked)}
-            className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 shrink-0"
+          </>
+        ) : (
+          <EntryManager
+            race={activeRace}
+            onUpdateEntries={(newEntries) => setRaceEntries(activeRaceId, newEntries)}
           />
-          <div className="flex flex-col">
-            <span>ドラA列の縦並び複数行を1名に結合する</span>
-            <span className="text-[10px] text-gray-500 font-normal leading-tight">（スーパーフォーミュラ等で、英語名と日本語名が別行にある場合のみ）</span>
-          </div>
-        </label>
-
-        <div className="flex gap-2 w-full sm:w-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(`「${activeRace.name}」のエントリーリストとピット割り当てをクリアします。よろしいですか？`)) {
-                setRaceEntries(activeRaceId, {});
-                alert(`「${activeRace.name}」のデータをクリアしました。`);
-              }
-            }}
-            className="px-4 py-3 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors shadow shrink-0"
-          >
-            このレースのデータクリア
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={grid.length === 0}
-            className="px-6 py-3 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow shrink-0"
-          >
-            保存して適用
-          </button>
-        </div>
+        )}
       </div>
+
+      {/* フッター (PDFモードのみ) */}
+      {viewMode === 'pdf' && (
+        <div className="p-3 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
+          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={mergeDrivers}
+              onChange={(e) => setMergeDrivers(e.target.checked)}
+              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 shrink-0"
+            />
+            <div className="flex flex-col">
+              <span>ドラA列の縦並び複数行を1名に結合する</span>
+              <span className="text-[10px] text-gray-500 font-normal leading-tight">（スーパーフォーミュラ等で、英語名と日本語名が別行にある場合のみ）</span>
+            </div>
+          </label>
+
+          <div className="flex gap-2 w-full sm:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`「${activeRace.name}」のエントリーリストとピット割り当てをクリアします。よろしいですか？`)) {
+                  setRaceEntries(activeRaceId, {});
+                  alert(`「${activeRace.name}」のデータをクリアしました。`);
+                }
+              }}
+              className="px-4 py-3 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors shadow shrink-0"
+            >
+              このレースのデータクリア
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={grid.length === 0}
+              className="px-6 py-3 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow shrink-0"
+            >
+              保存して適用
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
