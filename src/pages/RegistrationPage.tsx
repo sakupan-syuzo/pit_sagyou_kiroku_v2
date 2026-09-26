@@ -204,20 +204,20 @@ const RegistrationPage: React.FC = () => {
   const handleSave = () => {
     const storeEntries = usePitStore.getState().races.find(r => r.id === activeRaceId)?.entries ?? {};
     const newEntries: Record<string, Entry> = { ...storeEntries }; // 既存データとマージ
-    const carNoIndex = columnRoles.indexOf('carno');
-    const pitNoIndex = columnRoles.indexOf('pitno');
-    const mergedColIndex = columnRoles.indexOf('carno_driver_a');
+    const carNoIndices = columnRoles.map((r, i) => r === 'carno' ? i : -1).filter(i => i !== -1);
+    const pitNoIndices = columnRoles.map((r, i) => r === 'pitno' ? i : -1).filter(i => i !== -1);
+    const mergedColIndices = columnRoles.map((r, i) => r === 'carno_driver_a' ? i : -1).filter(i => i !== -1);
 
-    const hasMergedCol = mergedColIndex !== -1;
+    const hasMergedCol = mergedColIndices.length > 0;
 
     // 「ゼッケン＋ドライバー混在」列を使う場合はcarnoチェックを免除
-    if (carNoIndex === -1 && !hasMergedCol) {
+    if (carNoIndices.length === 0 && !hasMergedCol) {
       alert('「Car No」か「ゼッケン＋ドラA（混在）」の列を選択してください。');
       return;
     }
 
     const hasDriver = columnRoles.some((r) => r.startsWith('driver_'));
-    if (!hasDriver && pitNoIndex === -1 && !hasMergedCol) {
+    if (!hasDriver && pitNoIndices.length === 0 && !hasMergedCol) {
       alert('「ドライバー」か「PIT No」のどちらかの列を選択してください。');
       return;
     }
@@ -227,27 +227,31 @@ const RegistrationPage: React.FC = () => {
       // パターン: "7 高木 彪乃介/ T.TAKAGI" → carNo="7", driverA="高木 彪乃介/ T.TAKAGI"
       const headerKeywords = ['ゼッケン', 'driver', 'ドライバー', 'name', 'no', '番号'];
       for (const row of grid) {
-        const cell = row.cells[mergedColIndex]?.trim() ?? '';
-        const match = cell.match(/^(\d+)\s+(.+)$/);
-        if (!match) continue;
-        const lower = cell.toLowerCase();
-        if (headerKeywords.some((k) => lower.includes(k) && !/\d/.test(cell))) continue;
+        for (const cIndex of mergedColIndices) {
+          const cell = row.cells[cIndex]?.trim() ?? '';
+          const match = cell.match(/^(\d+)\s+(.+)$/);
+          if (!match) continue;
+          const lower = cell.toLowerCase();
+          if (headerKeywords.some((k) => lower.includes(k) && !/\d/.test(cell))) continue;
 
-        const cleanCarNo = normalizeCarNo(match[1]);
-        const driverName = match[2].trim();
-        if (!cleanCarNo || !driverName) continue;
+          const cleanCarNo = normalizeCarNo(match[1]);
+          const driverName = match[2].trim();
+          if (!cleanCarNo || !driverName) continue;
 
-        if (!newEntries[cleanCarNo]) {
-          newEntries[cleanCarNo] = { id: cleanCarNo, carNo: cleanCarNo, drivers: [] };
-        }
-        if (!newEntries[cleanCarNo].drivers.includes(driverName)) {
-          newEntries[cleanCarNo].drivers = [driverName];
-        }
-        // pitNo列があれば取得
-        if (pitNoIndex !== -1) {
-          const pitNoRaw = row.cells[pitNoIndex]?.trim();
-          if (pitNoRaw && /\d/.test(pitNoRaw)) {
-            newEntries[cleanCarNo].pitNo = pitNoRaw;
+          if (!newEntries[cleanCarNo]) {
+            newEntries[cleanCarNo] = { id: cleanCarNo, carNo: cleanCarNo, drivers: [] };
+          }
+          if (!newEntries[cleanCarNo].drivers.includes(driverName)) {
+            newEntries[cleanCarNo].drivers = [driverName];
+          }
+          
+          // pitNo列があれば、一番近い列から取得
+          if (pitNoIndices.length > 0) {
+            const closestPitIdx = pitNoIndices.reduce((a, b) => Math.abs(b - cIndex) < Math.abs(a - cIndex) ? b : a);
+            const pitNoRaw = row.cells[closestPitIdx]?.trim();
+            if (pitNoRaw && /\d/.test(pitNoRaw)) {
+              newEntries[cleanCarNo].pitNo = pitNoRaw;
+            }
           }
         }
       }
@@ -264,15 +268,22 @@ const RegistrationPage: React.FC = () => {
       carNo: string;
       pitNo: string;
       drivers: { a: string[]; b: string[]; c: string[]; d: string[]; e: string[]; f: string[] };
+      cIndex: number;
     }[] = [];
 
     for (const row of grid) {
-      const carNoRaw = row.cells[carNoIndex]?.trim();
-      if (carNoRaw && /\d/.test(carNoRaw)) {
-        const cleanCarNo = normalizeCarNo(carNoRaw);
-        const pitNoRaw = pitNoIndex !== -1 ? row.cells[pitNoIndex]?.trim() : '';
-        if (cleanCarNo) {
-          anchors.push({ y: row.y, carNo: cleanCarNo, pitNo: pitNoRaw, drivers: { a: [], b: [], c: [], d: [], e: [], f: [] } });
+      for (const cIdx of carNoIndices) {
+        const carNoRaw = row.cells[cIdx]?.trim();
+        if (carNoRaw && /\d/.test(carNoRaw)) {
+          const cleanCarNo = normalizeCarNo(carNoRaw);
+          let pitNoRaw = '';
+          if (pitNoIndices.length > 0) {
+            const closestPitIdx = pitNoIndices.reduce((a, b) => Math.abs(b - cIdx) < Math.abs(a - cIdx) ? b : a);
+            pitNoRaw = row.cells[closestPitIdx]?.trim() || '';
+          }
+          if (cleanCarNo) {
+            anchors.push({ y: row.y, carNo: cleanCarNo, pitNo: pitNoRaw, drivers: { a: [], b: [], c: [], d: [], e: [], f: [] }, cIndex: cIdx });
+          }
         }
       }
     }
@@ -282,47 +293,54 @@ const RegistrationPage: React.FC = () => {
       return;
     }
 
-    // 2. 各行のドライバーを、Y座標が最も近いCar Noに割り当てる
+    // 2. 各行のドライバーを、左右ブロックごとにY座標が最も近いCar Noに割り当てる
     for (const row of grid) {
-      let closestAnchor = anchors[0];
-      let minDiff = Math.abs(row.y - anchors[0].y);
-
-      for (let i = 1; i < anchors.length; i++) {
-        const diff = Math.abs(row.y - anchors[i].y);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestAnchor = anchors[i];
-        }
-      }
-
-      // ページ上部のタイトルやフッターなど、離れすぎているテキストは無視（閾値: 60px）
-      if (minDiff > 60) continue;
-
-      // この行のドライバー文字列を役割（A,B,C...）ごとに収集
-      const rowMap = { a: [] as string[], b: [] as string[], c: [] as string[], d: [] as string[], e: [] as string[], f: [] as string[] };
-      let hasAnyDriver = false;
+      const blockDrivers = new Map<number, { a: string[]; b: string[]; c: string[]; d: string[]; e: string[]; f: string[] }>();
 
       for (let c = 0; c < columnRoles.length; c++) {
         const role = columnRoles[c];
-        if (role.startsWith('driver_')) {
-          const text = row.cells[c]?.trim();
-          if (text) {
-            const lower = text.toLowerCase();
-            // ヘッダー誤検知フィルタ
-            if (!(lower.includes('driver') || lower.includes('ドライバー') || lower.includes('ﾄﾞﾗｲﾊﾞｰ') || lower.includes('氏名') || lower.includes('名前') || lower.includes('第1') || lower.includes('第2') || lower.includes('第3'))) {
-              const key = role.replace('driver_', '') as keyof typeof rowMap;
-              rowMap[key].push(text);
-              hasAnyDriver = true;
-            }
-          }
+        if (!role.startsWith('driver_')) continue;
+        const text = row.cells[c]?.trim();
+        if (!text) continue;
+
+        const lower = text.toLowerCase();
+        // ヘッダー誤検知フィルタ
+        if (lower.includes('driver') || lower.includes('ドライバー') || lower.includes('ﾄﾞﾗｲﾊﾞｰ') || lower.includes('氏名') || lower.includes('名前') || lower.includes('第1') || lower.includes('第2') || lower.includes('第3')) {
+          continue;
         }
+
+        // このドライバー列に一番近い Car No 列（ブロック）を特定
+        const closestCarNoIdx = carNoIndices.reduce((a, b) => Math.abs(b - c) < Math.abs(a - c) ? b : a);
+        if (!blockDrivers.has(closestCarNoIdx)) {
+          blockDrivers.set(closestCarNoIdx, { a: [], b: [], c: [], d: [], e: [], f: [] });
+        }
+        
+        const key = role.replace('driver_', '') as 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
+        blockDrivers.get(closestCarNoIdx)![key].push(text);
       }
 
-      if (hasAnyDriver) {
+      // ブロックごとに最も近いアンカーへドライバーを紐付け
+      for (const [blockCarNoIdx, drvs] of blockDrivers.entries()) {
+        const anchorsInBlock = anchors.filter((a) => a.cIndex === blockCarNoIdx);
+        if (anchorsInBlock.length === 0) continue;
+
+        let closestAnchor = anchorsInBlock[0];
+        let minDiff = Math.abs(row.y - closestAnchor.y);
+        for (let i = 1; i < anchorsInBlock.length; i++) {
+          const diff = Math.abs(row.y - anchorsInBlock[i].y);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestAnchor = anchorsInBlock[i];
+          }
+        }
+
+        // ページ上部のタイトルやフッターなど、離れすぎているテキストは無視（閾値: 60px）
+        if (minDiff > 60) continue;
+
         for (const key of ['a', 'b', 'c', 'd', 'e', 'f'] as const) {
-          if (rowMap[key].length > 0) {
+          if (drvs[key].length > 0) {
             // 同じ行に同じ役割（例：ドラA）が複数列ある場合（姓・名がスペースで分断された列など）は、スペースで結合して1人分とする
-            const combined = rowMap[key].join(' ');
+            const combined = drvs[key].join(' ');
             if (!closestAnchor.drivers[key].includes(combined)) {
               closestAnchor.drivers[key].push(combined);
             }
