@@ -61,7 +61,6 @@ export default defineConfig({
     alias: {},
   },
   build: {
-    target: 'esnext',
     rollupOptions: {
       output: {
         // @react-pdf/renderer は巨大なので分割

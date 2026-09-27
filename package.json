@@ -15,7 +15,7 @@
     "@react-pdf/renderer": "^4.9.0",
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.38.0",
-    "pdfjs-dist": "^6.3.289",
+    "pdfjs-dist": "^3.11.174",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",

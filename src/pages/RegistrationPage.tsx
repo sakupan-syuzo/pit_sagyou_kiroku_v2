@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.js?url';
 import { usePitStore } from '../store/usePitStore';
 import type { Entry } from '../types';
 import { normalizeCarNo } from '../utils/carNoUtils';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString();
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 type DriverRole = 'driver_a' | 'driver_b' | 'driver_c' | 'driver_d' | 'driver_e' | 'driver_f';
 type ColumnRole = 'ignore' | 'carno' | 'pitno' | 'carno_driver_a' | DriverRole;
@@ -186,9 +184,9 @@ const RegistrationPage: React.FC = () => {
 
       setColumnRoles(roles);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('PDFの解析に失敗しました。');
+      alert(`PDFの解析に失敗しました: ${err?.message || '不明なエラー'}`);
     } finally {
       setIsParsing(false);
       e.target.value = '';
