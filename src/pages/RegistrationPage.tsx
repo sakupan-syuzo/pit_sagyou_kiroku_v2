@@ -13,6 +13,9 @@ type GridRow = { y: number; cells: string[] };
 
 import EntryManager from '../components/Registration/EntryManager';
 import RaceSwitchWarningModal from '../components/Registration/RaceSwitchWarningModal';
+import MasterExportModal from '../components/Registration/MasterExportModal';
+import JsonImportModal from '../components/JsonImportModal';
+import { useDataImport } from '../hooks/useDataImport';
 
 interface Props {
   onNavigateToOutput?: () => void;
@@ -29,6 +32,10 @@ const RegistrationPage: React.FC<Props> = ({ onNavigateToOutput }) => {
   
   // レース切り替え警告モーダルの状態
   const [pendingRaceId, setPendingRaceId] = useState<string | null>(null);
+
+  // マスター配布
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const { pendingImportData, setPendingImportData, handleFileChange, handleConfirmMapping } = useDataImport();
 
   const races = usePitStore((s) => s.races);
   const activeRaceId = usePitStore((s) => s.activeRaceId);
@@ -633,6 +640,49 @@ const RegistrationPage: React.FC<Props> = ({ onNavigateToOutput }) => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 週末マスターの配布セクション */}
+      <div className="shrink-0 p-3 bg-white border-t border-gray-200 z-10">
+        <div className="bg-indigo-50 rounded-2xl shadow-sm border border-indigo-100 p-4 space-y-3">
+          <h2 className="text-sm font-bold text-indigo-800 flex items-center gap-1.5">
+            📦 週末マスターの配布
+          </h2>
+          <p className="text-xs text-indigo-600/80">
+            全クラスのエントリーをまとめて書き出し・読み込みできます
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-bold bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm min-h-[48px]"
+            >
+              📤 書き出す
+            </button>
+            
+            <label className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer min-h-[48px]">
+              📥 読み込む
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <MasterExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
+
+      {pendingImportData && (
+        <JsonImportModal
+          data={pendingImportData}
+          onClose={() => setPendingImportData(null)}
+          onConfirm={handleConfirmMapping}
+        />
       )}
 
       <RaceSwitchWarningModal

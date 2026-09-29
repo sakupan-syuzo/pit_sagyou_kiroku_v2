@@ -8,7 +8,8 @@ import PitDocument from '../pdf/PitDocument';
 import { calcDuration, getDriverLabel } from '../pdf/pdfUtils';
 import type { PitRecord, Entry } from '../types';
 import JsonImportModal from '../components/JsonImportModal';
-import { normalizeCarNo } from '../utils/carNoUtils';
+import MasterExportModal from '../components/Registration/MasterExportModal';
+import { useDataImport } from '../hooks/useDataImport';
 
 type OutputFormat = 'pdf' | 'csv';
 
@@ -99,13 +100,9 @@ const PdfPage: React.FC = () => {
   
   const setSessionName = usePitStore((s) => s.setSessionName);
   const setInspector = usePitStore((s) => s.setInspector);
-  const setRecords = usePitStore((s) => s.setRecords);
-  const updateRaceName = usePitStore((s) => s.updateRaceName);
-  const setRaceEntries = usePitStore((s) => s.setRaceEntries);
 
   const [editingRecord, setEditingRecord] = React.useState<PitRecord | null>(null);
   const [format, setFormat] = React.useState<OutputFormat>('pdf');
-  const [pendingImportData, setPendingImportData] = React.useState<any | null>(null);
   const [isSharingPdf, setIsSharingPdf] = React.useState(false);
 
   const SESSION_TYPES = ['FP', '予選', 'Q1', 'Q2', '決勝', 'ウォームアップ'];
@@ -151,168 +148,8 @@ const PdfPage: React.FC = () => {
     }
   };
 
-  const shareJson = async () => {
-    if (records.length === 0) {
-      alert('作業記録がありません。');
-      return;
-    }
-    const data = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      pitRecords: records,
-      entries: entries, // 下位互換性用
-      races: races,     // 複数レース対応
-      sessionName,
-      inspector,
-    };
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const fileName = `pitrec_${sessionName || 'data'}_${Date.now()}.json`;
-    const file = new File([blob], fileName, { type: 'application/json' });
-
-    // 1. Web Share API（ファイル共有対応）
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ title: 'PitRec 引き継ぎデータ', files: [file] });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return; // キャンセル
-        console.warn('File share failed, trying text share:', err);
-      }
-    }
-
-    // 2. テキスト共有（ファイル共有不可の場合）
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'PitRec 引き継ぎデータ',
-          text: jsonStr,
-        });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-        console.warn('Text share failed:', err);
-      }
-    }
-
-    // 3. ダウンロード（PC等）
-    try {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return;
-    } catch (err) {
-      console.warn('Download failed:', err);
-    }
-
-    // 4. 最終フォールバック：クリップボードにコピー
-    try {
-      await navigator.clipboard.writeText(jsonStr);
-      alert('データをクリップボードにコピーしました。\nLINEやメモアプリに貼り付けて送ってください。');
-    } catch {
-      alert('共有に失敗しました。端末または設定を確認してください。');
-    }
-  };
-
-  const handleJsonImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target?.result as string);
-        if (data.pitRecords && Array.isArray(data.pitRecords)) {
-          // モーダルを表示してマッピングを選択させる
-          setPendingImportData(data);
-        } else {
-          alert('無効なJSONデータです');
-        }
-      } catch (err) {
-        alert('JSONの読み込みに失敗しました');
-      }
-      e.target.value = '';
-    };
-    reader.readAsText(file);
-  };
-
-  const handleConfirmImport = (mapping: Record<string, string>) => {
-    if (!pendingImportData) return;
-    const data = pendingImportData;
-    
-    const newRecords = [...records];
-    let addedRecords = 0;
-
-    // 1. レコードのマージ
-    const importedRecords = data.pitRecords || [];
-    for (const r of importedRecords) {
-      const incRaceId = r.raceId || (data.races ? 'race1' : 'legacy');
-      const targetRaceId = mapping[incRaceId];
-
-      if (!targetRaceId || targetRaceId === 'skip') continue;
-
-      if (!newRecords.some(existing => existing.id === r.id)) {
-        newRecords.push({ ...r, raceId: targetRaceId });
-        addedRecords++;
-      }
-    }
-
-    // 2. エントリーとレース名のマージ
-    if (data.races && Array.isArray(data.races)) {
-      data.races.forEach((incRace: any) => {
-        const targetRaceId = mapping[incRace.id];
-        if (targetRaceId && targetRaceId !== 'skip') {
-          // エントリーをマージ
-          if (incRace.entries) {
-            const currentRace = races.find(r => r.id === targetRaceId);
-            const currentEntries = currentRace ? currentRace.entries : {};
-            
-            const normalizedIncEntries: Record<string, Entry> = {};
-            Object.values(incRace.entries).forEach((entry: any) => {
-              const cleanNo = normalizeCarNo(entry.carNo || entry.id);
-              if (cleanNo) {
-                normalizedIncEntries[cleanNo] = { ...entry, id: cleanNo, carNo: cleanNo };
-              }
-            });
-
-            setRaceEntries(targetRaceId, { ...currentEntries, ...normalizedIncEntries });
-          }
-          // レース名を更新（相手側の名前に合わせる）
-          if (incRace.name) {
-            updateRaceName(targetRaceId, incRace.name);
-          }
-        }
-      });
-    } else if (data.entries) {
-      const targetRaceId = mapping['legacy'];
-      if (targetRaceId && targetRaceId !== 'skip') {
-        const currentRace = races.find(r => r.id === targetRaceId);
-        const currentEntries = currentRace ? currentRace.entries : {};
-        
-        const normalizedIncEntries: Record<string, Entry> = {};
-        Object.values(data.entries).forEach((entry: any) => {
-          const cleanNo = normalizeCarNo(entry.carNo || entry.id);
-          if (cleanNo) {
-            normalizedIncEntries[cleanNo] = { ...entry, id: cleanNo, carNo: cleanNo };
-          }
-        });
-
-        setRaceEntries(targetRaceId, { ...currentEntries, ...normalizedIncEntries });
-      }
-    }
-
-    if (addedRecords > 0) {
-      setRecords(newRecords);
-    }
-    
-    alert(`データの引き継ぎが完了しました。\n（レコード追加: ${addedRecords}件）`);
-    setPendingImportData(null);
-  };
+  const { pendingImportData, setPendingImportData, handleFileChange: handleJsonImport, handleConfirmMapping: handleConfirmImport } = useDataImport();
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
 
   return (
     <div className="px-3 pb-24 pt-4 space-y-4 max-w-lg mx-auto">
@@ -475,7 +312,7 @@ const PdfPage: React.FC = () => {
         </p>
         <div className="flex gap-2">
           <button
-            onClick={shareJson}
+            onClick={() => setIsExportModalOpen(true)}
             className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-bold bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm"
           >
             <Share size={18} />
@@ -502,6 +339,11 @@ const PdfPage: React.FC = () => {
       </div>
 
       <EditModal record={editingRecord} onClose={() => setEditingRecord(null)} />
+
+      <MasterExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
 
       {pendingImportData && (
         <JsonImportModal
