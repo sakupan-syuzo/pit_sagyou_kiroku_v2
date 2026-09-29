@@ -12,8 +12,13 @@ type ColumnRole = 'ignore' | 'carno' | 'pitno' | 'carno_driver_a' | DriverRole;
 type GridRow = { y: number; cells: string[] };
 
 import EntryManager from '../components/Registration/EntryManager';
+import RaceSwitchWarningModal from '../components/Registration/RaceSwitchWarningModal';
 
-const RegistrationPage: React.FC = () => {
+interface Props {
+  onNavigateToOutput?: () => void;
+}
+
+const RegistrationPage: React.FC<Props> = ({ onNavigateToOutput }) => {
   const [viewMode, setViewMode] = useState<'pdf' | 'manage'>('pdf');
   const [grid, setGrid] = useState<GridRow[]>([]);
   const [columnRoles, setColumnRoles] = useState<ColumnRole[]>([]);
@@ -21,12 +26,17 @@ const RegistrationPage: React.FC = () => {
   const [mergeDrivers, setMergeDrivers] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  
+  // レース切り替え警告モーダルの状態
+  const [pendingRaceId, setPendingRaceId] = useState<string | null>(null);
 
   const races = usePitStore((s) => s.races);
   const activeRaceId = usePitStore((s) => s.activeRaceId);
   const setActiveRace = usePitStore((s) => s.setActiveRace);
   const updateRaceName = usePitStore((s) => s.updateRaceName);
   const setRaceEntries = usePitStore((s) => s.setRaceEntries);
+  const records = usePitStore((s) => s.records);
+  const clearAllData = usePitStore((s) => s.clearAllData);
 
   const activeRace = races.find((r) => r.id === activeRaceId) ?? races[0];
 
@@ -390,16 +400,28 @@ const RegistrationPage: React.FC = () => {
     <div className="flex flex-col h-full bg-gray-100 overflow-hidden">
       {/* ヘッダー */}
       <div className="flex-none bg-white border-b border-gray-200 px-3 py-2 shadow-sm z-10 space-y-2">
+        {/* セッション未クリア警告バナー */}
+        {records.length > 0 && (
+          <div className="bg-amber-100 text-amber-800 px-3 py-2 text-xs font-bold rounded flex items-center gap-1 mb-2 mt-1">
+            ⚠️ 現在 {records.length} 件の作業記録が未クリアです
+          </div>
+        )}
+
         {/* レース選択 */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-gray-500 shrink-0">記録対象レース：</span>
           <select
             value={activeRaceId}
             onChange={(e) => {
-              setActiveRace(e.target.value);
-              setEditingName(false);
-              setGrid([]);
-              setColumnRoles([]);
+              const targetId = e.target.value;
+              if (records.length > 0) {
+                setPendingRaceId(targetId);
+              } else {
+                setActiveRace(targetId);
+                setEditingName(false);
+                setGrid([]);
+                setColumnRoles([]);
+              }
             }}
             className="flex-1 text-sm font-bold border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
@@ -612,6 +634,28 @@ const RegistrationPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <RaceSwitchWarningModal
+        isOpen={pendingRaceId !== null}
+        recordCount={records.length}
+        onCancel={() => setPendingRaceId(null)}
+        onNavigateToOutput={onNavigateToOutput}
+        onClearAndSwitch={() => {
+          clearAllData();
+          if (pendingRaceId) setActiveRace(pendingRaceId);
+          setPendingRaceId(null);
+          setEditingName(false);
+          setGrid([]);
+          setColumnRoles([]);
+        }}
+        onKeepAndSwitch={() => {
+          if (pendingRaceId) setActiveRace(pendingRaceId);
+          setPendingRaceId(null);
+          setEditingName(false);
+          setGrid([]);
+          setColumnRoles([]);
+        }}
+      />
     </div>
   );
 };

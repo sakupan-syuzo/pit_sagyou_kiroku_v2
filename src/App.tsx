@@ -15,7 +15,7 @@ const App: React.FC = () => {
       <main className="h-dvh pb-14">
         {activeTab === 'input' && <InputPage />}
         {activeTab === 'pdf' && <PdfPage />}
-        {activeTab === 'registration' && <RegistrationPage />}
+        {activeTab === 'registration' && <RegistrationPage onNavigateToOutput={() => setActiveTab('pdf')} />}
       </main>
 
       {/* タブナビゲーション */}
