@@ -47,7 +47,7 @@ const InputPage: React.FC = () => {
   const pitOutLockTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Wake Lock はカスタムフックで管理（visibilitychange 再取得含む）
-  const { enabled: isWakeLockActive, toggle: toggleWakeLock } = useWakeLock();
+  const { active: isWakeLockActive, toggle: toggleWakeLock } = useWakeLock();
 
   const clearAllData = usePitStore((s) => s.clearAllData);
   const laneCount = usePitStore((s) => s.laneCount);
@@ -59,6 +59,7 @@ const InputPage: React.FC = () => {
   const addRecord = usePitStore((s) => s.addRecord);
   const pitInButtonPosition = usePitStore((s) => s.pitInButtonPosition);
   const setPitInButtonPosition = usePitStore((s) => s.setPitInButtonPosition);
+  const activeRaceId = usePitStore((s) => s.activeRaceId);
 
   /** PIT OUT後に700msのタップロックを開始する */
   const startPitOutLock = React.useCallback(() => {
@@ -114,6 +115,7 @@ const InputPage: React.FC = () => {
     if (!draft) return;
     const record: PitRecord = {
       id: uuidv4(),
+      raceId: activeRaceId,
       createdAt: draft.createdAt,
       carNo: draft.carNo,
       pitNo: draft.pitNo,
@@ -140,6 +142,7 @@ const InputPage: React.FC = () => {
     const now = Date.now();
     const record: PitRecord = {
       id: uuidv4(),
+      raceId: activeRaceId,
       createdAt: draft.createdAt,
       carNo: draft.carNo,
       pitNo: draft.pitNo,
@@ -184,18 +187,24 @@ const InputPage: React.FC = () => {
       setLaneCount(next);
       return;
     }
-    // 削減対象レーンに作業中が含まれる場合は確認ダイアログ
-    const hasWorkingData = laneStates.slice(next).some((ls) => ls?.status === 'working');
-    if (hasWorkingData) {
+
+    // 待機中だが入力済み（装填済み）のレーンが切り捨てられる場合のみ確認する
+    const hasArmedData = laneStates
+      .slice(next)
+      .some((ls) => ls?.status === 'standby' && ls.draft.carNo.trim() !== '');
+    if (hasArmedData) {
       if (!window.confirm(
         `レーン数を ${laneCount} → ${next} に減らすと、\n` +
-        `レーン ${next + 1}〜${laneCount} の入力途中データが消えます。\n\nよろしいですか？`
+        `レーン ${next + 1}〜${laneCount} に入力済みの車番などが消えます。\n\nよろしいですか？`
       )) return;
     }
-    // setLaneCount の戻り値を確認し、失敗時はエラーを表示する
+
     const ok = setLaneCount(next);
     if (!ok) {
-      alert('作業中のレーンがあるため、レーン数を減らせません。\n作業中のレーンを完了または中断してから操作してください。');
+      alert(
+        '作業中のレーンがあるため、レーン数を減らせません。\n' +
+        'PIT OUT または取り消しをしてから操作してください。'
+      );
     }
   };
 

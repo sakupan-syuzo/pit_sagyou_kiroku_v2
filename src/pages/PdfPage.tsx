@@ -8,6 +8,7 @@ import PitDocument from '../pdf/PitDocument';
 import { calcDuration, getDriverLabel } from '../pdf/pdfUtils';
 import type { PitRecord, Entry } from '../types';
 import JsonImportModal from '../components/JsonImportModal';
+import { normalizeCarNo } from '../utils/carNoUtils';
 
 type OutputFormat = 'pdf' | 'csv';
 
@@ -106,6 +107,20 @@ const PdfPage: React.FC = () => {
   const [format, setFormat] = React.useState<OutputFormat>('pdf');
   const [pendingImportData, setPendingImportData] = React.useState<any | null>(null);
   const [isSharingPdf, setIsSharingPdf] = React.useState(false);
+
+  const SESSION_TYPES = ['FP', '予選', 'Q1', 'Q2', '決勝', 'ウォームアップ'];
+  const validRaces = races.filter(r => Object.keys(r.entries).length > 0);
+  const defaultRaceName = validRaces.length > 0 ? validRaces[0].name : '';
+
+  const [isFreeTextSession, setIsFreeTextSession] = React.useState(!!sessionName);
+  const [selectedRace, setSelectedRace] = React.useState(defaultRaceName);
+  const [selectedType, setSelectedType] = React.useState(SESSION_TYPES[0]);
+
+  React.useEffect(() => {
+    if (!isFreeTextSession) {
+      setSessionName(selectedRace ? `${selectedRace} ${selectedType}` : selectedType);
+    }
+  }, [selectedRace, selectedType, isFreeTextSession, setSessionName]);
 
   const pdfFileName = `pit_record_${sessionName || 'session'}_${new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '')}.pdf`;
 
@@ -256,7 +271,16 @@ const PdfPage: React.FC = () => {
           if (incRace.entries) {
             const currentRace = races.find(r => r.id === targetRaceId);
             const currentEntries = currentRace ? currentRace.entries : {};
-            setRaceEntries(targetRaceId, { ...currentEntries, ...incRace.entries });
+            
+            const normalizedIncEntries: Record<string, Entry> = {};
+            Object.values(incRace.entries).forEach((entry: any) => {
+              const cleanNo = normalizeCarNo(entry.carNo || entry.id);
+              if (cleanNo) {
+                normalizedIncEntries[cleanNo] = { ...entry, id: cleanNo, carNo: cleanNo };
+              }
+            });
+
+            setRaceEntries(targetRaceId, { ...currentEntries, ...normalizedIncEntries });
           }
           // レース名を更新（相手側の名前に合わせる）
           if (incRace.name) {
@@ -269,7 +293,16 @@ const PdfPage: React.FC = () => {
       if (targetRaceId && targetRaceId !== 'skip') {
         const currentRace = races.find(r => r.id === targetRaceId);
         const currentEntries = currentRace ? currentRace.entries : {};
-        setRaceEntries(targetRaceId, { ...currentEntries, ...data.entries });
+        
+        const normalizedIncEntries: Record<string, Entry> = {};
+        Object.values(data.entries).forEach((entry: any) => {
+          const cleanNo = normalizeCarNo(entry.carNo || entry.id);
+          if (cleanNo) {
+            normalizedIncEntries[cleanNo] = { ...entry, id: cleanNo, carNo: cleanNo };
+          }
+        });
+
+        setRaceEntries(targetRaceId, { ...currentEntries, ...normalizedIncEntries });
       }
     }
 
@@ -289,14 +322,48 @@ const PdfPage: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 space-y-3">
         <h2 className="text-sm font-bold text-gray-700">出力情報</h2>
         <div>
-          <label className="block text-xs font-bold text-gray-600 mb-1">セッション名</label>
-          <input
-            type="text"
-            value={sessionName}
-            onChange={(e) => setSessionName(e.target.value)}
-            placeholder="例: 決勝レース"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-bold text-gray-600">セッション名</label>
+            {isFreeTextSession ? (
+              <button type="button" onClick={() => setIsFreeTextSession(false)} className="text-[10px] text-blue-600 font-bold hover:underline">
+                🔄 プルダウン選択に戻す
+              </button>
+            ) : (
+              <button type="button" onClick={() => setIsFreeTextSession(true)} className="text-[10px] text-blue-600 font-bold hover:underline">
+                ✏️ 自由入力に切り替え
+              </button>
+            )}
+          </div>
+          {isFreeTextSession ? (
+            <input
+              type="text"
+              value={sessionName}
+              onChange={(e) => setSessionName(e.target.value)}
+              placeholder="例: 決勝レース"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          ) : (
+            <div>
+              <div className="flex gap-2">
+                <select
+                  value={selectedRace}
+                  onChange={(e) => setSelectedRace(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">(選択なし)</option>
+                  {validRaces.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                </select>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">現在の設定: <span className="font-bold text-gray-700">{sessionName || '(なし)'}</span></p>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-600 mb-1">担当審判員</label>
