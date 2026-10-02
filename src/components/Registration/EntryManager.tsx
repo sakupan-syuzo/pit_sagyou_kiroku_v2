@@ -6,19 +6,31 @@ import { normalizeCarNo } from '../../utils/carNoUtils';
 interface EntryManagerProps {
   race: Race;
   onUpdateEntries: (newEntries: Record<string, Entry>) => void;
+  initialFilter?: 'all' | 'missing';
 }
 
-const EntryManager: React.FC<EntryManagerProps> = ({ race, onUpdateEntries }) => {
+const EntryManager: React.FC<EntryManagerProps> = ({ race, onUpdateEntries, initialFilter = 'all' }) => {
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [originalCarNo, setOriginalCarNo] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'missing'>(initialFilter);
 
-  const entriesArray = Object.values(race.entries).sort((a, b) => {
+  React.useEffect(() => {
+    setFilter(initialFilter);
+  }, [initialFilter]);
+
+  const rawEntriesArray = Object.values(race.entries).sort((a, b) => {
     // 数値としてソート（できなければ文字列比較）
     const numA = parseInt(a.carNo, 10);
     const numB = parseInt(b.carNo, 10);
     if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
     return a.carNo.localeCompare(b.carNo);
   });
+
+  const missingCount = rawEntriesArray.filter(e => e.drivers.length === 0 || e.drivers.every(d => d.trim() === '')).length;
+
+  const entriesArray = filter === 'missing'
+    ? rawEntriesArray.filter(e => e.drivers.length === 0 || e.drivers.every(d => d.trim() === ''))
+    : rawEntriesArray;
 
   const handleEdit = (entry: Entry) => {
     setEditingEntry({ ...entry, drivers: [...entry.drivers] });
@@ -76,14 +88,44 @@ const EntryManager: React.FC<EntryManagerProps> = ({ race, onUpdateEntries }) =>
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white rounded-xl shadow-sm border border-gray-200">
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-sm font-bold text-gray-700">登録済みデータ ({entriesArray.length}台)</h2>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <Plus size={14} /> 追加
-        </button>
+      <div className="flex flex-col border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between p-3">
+          <h2 className="text-sm font-bold text-gray-700">登録済みデータ ({rawEntriesArray.length}台)</h2>
+          <button
+            onClick={handleAddNew}
+            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <Plus size={14} /> 追加
+          </button>
+        </div>
+        
+        <div className="flex gap-2 px-3 pb-3">
+          <button
+            onClick={() => setFilter('all')}
+            className={`flex-1 min-h-[44px] text-xs font-bold rounded-lg transition-colors border ${
+              filter === 'all'
+                ? 'bg-gray-800 text-white border-gray-800'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            すべて
+          </button>
+          <button
+            onClick={() => {
+              if (missingCount > 0) setFilter('missing');
+            }}
+            disabled={missingCount === 0}
+            className={`flex-1 min-h-[44px] flex items-center justify-center gap-1 text-xs font-bold rounded-lg transition-colors border ${
+              filter === 'missing'
+                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                : missingCount === 0
+                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed opacity-70'
+                : 'bg-white text-amber-600 border-amber-300 hover:bg-amber-50'
+            }`}
+          >
+            ⚠️ ドライバー未登録 ({missingCount})
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-2">

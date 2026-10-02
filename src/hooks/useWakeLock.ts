@@ -53,16 +53,16 @@ export function useWakeLock() {
       return;
     }
 
-    if (enabled) {
-      // ONからOFF
+    if (active) {
+      // 実際にONになっている場合はOFFにする
       setEnabled(false);
       await release();
     } else {
-      // OFFからON
+      // 実際にOFFになっている場合（または取得失敗している場合）は再度取得を試みる
       setEnabled(true);
       await acquire();
     }
-  }, [enabled, acquire, release]);
+  }, [active, acquire, release]);
 
   /** visibilitychange: 画面復帰時にONであれば再取得 */
   useEffect(() => {

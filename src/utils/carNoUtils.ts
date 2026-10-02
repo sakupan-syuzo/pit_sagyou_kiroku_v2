@@ -24,7 +24,18 @@ export function normalizeCarNo(raw: string): string {
   // 残った先頭の記号 (#, ♯ 等) を念のため再除去
   s = s.replace(/^[#♯＃\s]+/, '');
 
-  // 先頭ゼロを除去（純粋な数字列の場合のみ）
+  // PDF抽出の都合上、車番とチーム名などが同一セルに結合してしまった場合の救済
+  // （空白で区切られた最初のブロックを抽出し、それが英数字1〜5桁なら採用）
+  const extractMatch = s.match(/^([a-zA-Z0-9]{1,5})(?:\s+|$)/);
+  if (extractMatch) {
+    let extracted = extractMatch[1];
+    if (/^\d+$/.test(extracted)) {
+      extracted = String(parseInt(extracted, 10)); // 先頭ゼロを除去
+    }
+    return extracted;
+  }
+
+  // フォールバック（純粋な数字列の場合のみ先頭ゼロ除去）
   if (/^\d+$/.test(s)) {
     s = String(parseInt(s, 10));
   }
