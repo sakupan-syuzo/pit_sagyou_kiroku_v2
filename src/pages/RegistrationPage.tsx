@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.js?url';
-import { usePitStore } from '../store/usePitStore';
+import { usePitStore, DEFAULT_RACE_NAMES } from '../store/usePitStore';
 import type { Entry } from '../types';
 import { normalizeCarNo } from '../utils/carNoUtils';
 
@@ -484,8 +484,15 @@ const RegistrationPage: React.FC<Props> = ({ onNavigateToOutput }) => {
   };
 
   const handleSaveName = () => {
-    if (nameInput.trim()) {
-      updateRaceName(activeRaceId, nameInput.trim());
+    const trimmed = nameInput.trim();
+    if (trimmed) {
+      updateRaceName(activeRaceId, trimmed);
+    } else {
+      // 空欄で保存した場合はデフォルト名（レース1〜5）に戻す
+      const idx = races.findIndex((r) => r.id === activeRaceId);
+      if (idx >= 0 && DEFAULT_RACE_NAMES[idx]) {
+        updateRaceName(activeRaceId, DEFAULT_RACE_NAMES[idx]);
+      }
     }
     setEditingName(false);
   };

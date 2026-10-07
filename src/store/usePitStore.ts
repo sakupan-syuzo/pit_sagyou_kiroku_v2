@@ -30,7 +30,7 @@ export const initialLaneState = (): LaneState => ({
 });
 
 const RACE_IDS = ['race1', 'race2', 'race3', 'race4', 'race5'] as const;
-const DEFAULT_RACE_NAMES = ['レース 1', 'レース 2', 'レース 3', 'レース 4', 'レース 5'];
+export const DEFAULT_RACE_NAMES = ['レース 1', 'レース 2', 'レース 3', 'レース 4', 'レース 5'];
 
 const initialRaces = (): Race[] =>
   RACE_IDS.map((id, i) => ({
