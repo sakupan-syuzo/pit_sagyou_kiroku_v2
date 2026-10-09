@@ -22,6 +22,22 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
   const entry = normalizedCarNo ? entries[normalizedCarNo] : undefined;
   const driverLabels = entry?.drivers;
 
+  /**
+   * 車番が変わったとき、交代予定（pitOutDriver）が新しい車のドライバーに含まれなければ空にする。
+   * INドライバー（pitInDriver）は手入力名を守るため消さない。
+   */
+  const clearPlannedOutIfNotInEntry = (
+    newCarNo: string,
+    updates: Partial<LaneDraft>
+  ) => {
+    if (!draft.pitOutDriver) return;
+    const cleanCarNo = normalizeCarNo(newCarNo);
+    const newEntry = cleanCarNo ? entries[cleanCarNo] : undefined;
+    if (!newEntry || !newEntry.drivers.includes(draft.pitOutDriver)) {
+      updates.pitOutDriver = '';
+    }
+  };
+
   const handlePitNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     const updates: Partial<LaneDraft> = { pitNo: val };
@@ -31,6 +47,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
       const matchedEntry = Object.values(entries).find(entry => entry.pitNo === val);
       if (matchedEntry) {
         updates.carNo = matchedEntry.carNo;
+        clearPlannedOutIfNotInEntry(matchedEntry.carNo, updates);
       }
     }
     onDraftChange(updates);
@@ -39,6 +56,7 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
   const handleCarNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     const updates: Partial<LaneDraft> = { carNo: val };
+    clearPlannedOutIfNotInEntry(val, updates);
     
     // Auto-fill PIT No.
     if (val) {
@@ -92,6 +110,8 @@ const StandbyForm: React.FC<StandbyFormProps> = ({ draft, onDraftChange, onPitIn
             onChange={(v) => onDraftChange({ pitInDriver: v })}
             placeholder="Drv"
             driverLabels={driverLabels}
+            plannedOutValue={draft.pitOutDriver || ''}
+            onPlannedOutChange={(v) => onDraftChange({ pitOutDriver: v })}
           />
         </div>
       </div>

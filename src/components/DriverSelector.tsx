@@ -10,6 +10,9 @@ interface DriverSelectorProps {
   /** 選択不可にするラベル（例: PIT INで選んだ "A" を除外） */
   excludeLabels?: string[];
   driverLabels?: string[];
+  /** 待機中の交代予定（紫）。指定された場合のみ「押す順番で役割が決まる」動作になる */
+  plannedOutValue?: string;
+  onPlannedOutChange?: (v: string) => void;
 }
 
 /**
@@ -23,7 +26,11 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   placeholder = 'ドライバー名',
   excludeLabels = [],
   driverLabels,
+  plannedOutValue = '',
+  onPlannedOutChange,
 }) => {
+  // onPlannedOutChange が渡されたときだけ「押す順番で役割が決まる」動作にする（EditModal等は従来どおり）
+  const plannedMode = !!onPlannedOutChange;
   const hasCustomLabels = driverLabels && driverLabels.length > 0;
   const count = hasCustomLabels ? driverLabels.length : DEFAULT_DRIVER_LABELS.length;
 
@@ -64,6 +71,22 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   }, [value]);
 
   const handlePreset = (val: string) => {
+    if (plannedMode && !inputMode && value !== '') {
+      // 青を押した: INドライバーと交代予定を両方取り消す（クリアの責務はここに一本化）
+      if (val === value) {
+        onChange('');
+        onPlannedOutChange?.('');
+        return;
+      }
+      // 紫を押した: 交代予定を取り消す
+      if (val === plannedOutValue) {
+        onPlannedOutChange?.('');
+        return;
+      }
+      // INドライバー選択済みで別の人を押した: 交代予定にする（変更も同じ）
+      onPlannedOutChange?.(val);
+      return;
+    }
     onChange(val);
     setInputMode(false);
   };
@@ -71,10 +94,18 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
   const handleToggleInput = () => {
     const next = !inputMode;
     setInputMode(next);
-    if (!next) {
+    if (next) {
+      // 手入力に入る時点で交代予定をクリア（新しいINドライバーと合わない可能性があるため）
+      onPlannedOutChange?.('');
+    } else {
       if (!isPreset) onChange('');
     }
   };
+
+  // 交代予定の表示条件: INドライバーがあり、手入力中でなく、INと別の人であること
+  const hasPlanned =
+    plannedMode && !inputMode && value !== '' && plannedOutValue !== '' && plannedOutValue !== value;
+  const minH = plannedMode ? 'min-h-[44px]' : 'min-h-[38px]';
 
   return (
     <div className="space-y-1.5">
@@ -83,6 +114,7 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
         {buttons.map(({ defaultLabel, displaySub, valueToUse }) => {
           const isExcluded = excludeLabels.includes(valueToUse);
           const isSelected = value === valueToUse && !inputMode;
+          const isPlannedOut = hasPlanned && plannedOutValue === valueToUse;
           return (
             <button
               key={valueToUse}
@@ -90,11 +122,13 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
               disabled={isExcluded}
               onClick={() => !isExcluded && handlePreset(valueToUse)}
               title={isExcluded ? `${valueToUse}: PIT INで使用中` : valueToUse}
-              className={`flex-1 flex flex-col items-center justify-center rounded-md border transition-colors leading-none min-w-[1.8rem] min-h-[38px] px-0.5 ${
+              className={`flex-1 flex flex-col items-center justify-center rounded-md border transition-colors leading-none min-w-[1.8rem] ${minH} px-0.5 ${
                 isExcluded
                   ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed line-through'
                   : isSelected
                   ? 'bg-blue-600 text-white border-blue-600'
+                  : isPlannedOut
+                  ? 'bg-purple-600 text-white border-purple-600'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 active:bg-gray-100'
               }`}
             >
@@ -114,7 +148,7 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
         <button
           type="button"
           onClick={handleToggleInput}
-          className={`flex items-center justify-center px-2 min-h-[38px] rounded-md border transition-colors shrink-0 ${
+          className={`flex items-center justify-center px-2 ${minH} rounded-md border transition-colors shrink-0 ${
             inputMode
               ? 'bg-indigo-600 text-white border-indigo-600'
               : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
@@ -124,6 +158,13 @@ const DriverSelector: React.FC<DriverSelectorProps> = ({
           <PenLine size={13} />
         </button>
       </div>
+
+      {/* 交代予定の表示（待機中のみ） */}
+      {hasPlanned && (
+        <div className="text-[11px] font-bold text-purple-700 px-1 truncate">
+          {value} → {plannedOutValue} に交代予定
+        </div>
+      )}
 
       {/* テキスト入力欄（入力モード時のみ表示） */}
       {inputMode && (

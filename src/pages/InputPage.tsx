@@ -83,12 +83,15 @@ const InputPage: React.FC = () => {
     const draft = laneStates[laneIndex]?.draft;
     if (!draft) return;
     const now = Date.now();
+    // 待機中に選んだ交代予定を引き継ぐ（INドライバーと同じ値は無効）
+    const plannedOut = draft.pitOutDriver?.trim() ?? '';
+    const hasPlanned = plannedOut !== '' && plannedOut !== draft.pitInDriver;
     setLaneState(laneIndex, {
       status: 'working',
       draft: {
         ...draft,
-        isDriverChanged: false,
-        pitOutDriver: '',
+        isDriverChanged: hasPlanned,
+        pitOutDriver: hasPlanned ? plannedOut : '',
         pitInTime: getNowTime(),
         pitInAt: now,
         pitOutAt: null,
