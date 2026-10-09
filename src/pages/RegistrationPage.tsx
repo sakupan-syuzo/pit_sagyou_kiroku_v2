@@ -820,7 +820,7 @@ const RegistrationPage: React.FC<Props> = ({ onNavigateToOutput }) => {
         onClose={() => setIsImportResultModalOpen(false)}
         onNavigateToManage={() => {
           setViewMode('manage');
-          setManageFilter('missing');
+          setManageFilter(importResult.missingDrivers.length > 0 ? 'missing' : 'all');
         }}
       />
     </div>

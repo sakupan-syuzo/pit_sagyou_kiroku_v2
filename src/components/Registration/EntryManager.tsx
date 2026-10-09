@@ -28,6 +28,13 @@ const EntryManager: React.FC<EntryManagerProps> = ({ race, onUpdateEntries, init
 
   const missingCount = rawEntriesArray.filter(e => e.drivers.length === 0 || e.drivers.every(d => d.trim() === '')).length;
 
+  // 「未登録のみ」の絞り込み中に未登録が0台になったら、空の一覧にならないよう全件表示へ戻す
+  React.useEffect(() => {
+    if (filter === 'missing' && missingCount === 0) {
+      setFilter('all');
+    }
+  }, [filter, missingCount]);
+
   const entriesArray = filter === 'missing'
     ? rawEntriesArray.filter(e => e.drivers.length === 0 || e.drivers.every(d => d.trim() === ''))
     : rawEntriesArray;
