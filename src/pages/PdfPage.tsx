@@ -105,7 +105,7 @@ const PdfPage: React.FC = () => {
   const [format, setFormat] = React.useState<OutputFormat>('pdf');
   const [isSharingPdf, setIsSharingPdf] = React.useState(false);
 
-  const SESSION_TYPES = ['FP', '予選', 'Q1', 'Q2', '決勝', 'ウォームアップ'];
+  const SESSION_TYPES = ['FP', '予選', 'Q1', 'Q2', 'Q3', '決勝', 'ウォームアップ'];
   const validRaces = races.filter(r => Object.keys(r.entries).length > 0);
   const defaultRaceName = validRaces.length > 0 ? validRaces[0].name : '';
 
